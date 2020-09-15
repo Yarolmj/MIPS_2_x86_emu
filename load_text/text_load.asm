@@ -17,6 +17,7 @@ section .data
     example: db "HOLA PUTOS",10
     example2: db "HOLA2PUTOS",10
     example3: db "HOLA3PUTOS",10
+    nl: db 10
 section .text
 global _start
 
@@ -34,33 +35,85 @@ _read_text:
     syscall
 
     mov rcx,0
-    _rt_loop:
+    mov rdi,rax
+    mov r8,0
+    mov r9,0
+    rt_loop:
     ;file read to buffer
+        ;mov r8,0
+        push rcx
+        push rdi
         
-        mov rdi,rax
+
         mov rax,0
+
         mov rsi,instruction_byte_buffer
         mov rdx,2
         syscall
-        mov r8b,[instruction_byte_buffer]
-        mov r9,instruction_byte_buffer+1
-        sub r9,48
-        add r8,r9
-        ;mov r10,instruction_buffer
-        ;stop_:
-        sub r8b,48
-        mov [instruction_buffer],r8b
-        ;inc rcx
-        ;cmp rcx,40000
-        ;jz _rt_loop
-    _rt_loop_end:
-    ;print the readed information
-    mov rax,1
-    mov rdi,0
-    mov rsi,instruction_buffer
-    mov rdx,40000
-    syscall
-    ret
+        cmp rax,1
+        jz rt_loop_end
+
+        mov r8,[instruction_byte_buffer]
+        mov r9,[instruction_byte_buffer+1]
+        and r8,0xFF
+        and r9,0xFF
+        cmp r8,10
+        jz rt_nl
+        break1:
+        cmp r8,57
+        jle rt_num1
+        jmp rt_let1
+        rt_num1:
+            sub r8,48
+            ;and r8,0x0F
+            jmp rt_byte2
+        rt_let1:
+            sub r8,87
+            and r8,0xFF
+            jmp rt_byte2
+        rt_nl:
+            mov r8,r9
+
+            mov rax,0
+            pop rdi
+            push rdi
+            ALTO:
+            mov rsi,instruction_byte_buffer
+            mov rdx,1
+            syscall
+            mov r9,[instruction_byte_buffer]
+            and r9,0xFF
+            jmp break1
+
+        rt_byte2:
+        cmp r9,57
+        jle rt_num2
+        jmp rt_let2
+
+        rt_num2:
+            sub r9,48
+            and r9,0xFF
+            jmp stop
+        rt_let2:
+            sub r9,87
+            and r9,0xFF
+            jmp stop
+        stop:
+        
+
+        jmp rt_next_loop
+    rt_loop_end:
+        pop rdi
+        pop rcx
+        ret
+    rt_next_loop:
+        pop rdi
+        pop rcx
+
+        inc rcx
+        cmp rcx,40000
+        jnz rt_loop
+        ret
 _exit:
     mov rax,60
     ;pop rdi
