@@ -126,7 +126,7 @@ _read_text:
         ;pop rcx
         ;pop rdi
         inc rcx
-        cmp rcx,4096
+        cmp rcx,4000000
         jnz rt_loop
         ret
 
@@ -224,7 +224,7 @@ _read_data:
         mov byte [data_buffer + rcx],r8b ;Guarda el dato en memoria antes del siguiente salto
 
         inc rcx
-        cmp rcx,4096
+        cmp rcx,4000000
         jnz rt_loop
         ret
 
