@@ -9,8 +9,8 @@
 section .data
     ;hex_to_dec: db "0123456789abcdef",0
     load_byte_buffer: db 0,0
-    instruction_buffer: TIMES 4096 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
-    data_buffer: TIMES 4096 db 0; Buffer del .data 4 MBytes
+    instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
+    data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
     ;instruction_opcodes: TIMES 10000 db 0 ; guarda los opcodes de las 10000 instrucciones de instruction_buffer
     filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
