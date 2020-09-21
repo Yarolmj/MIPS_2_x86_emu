@@ -427,19 +427,29 @@ _read_data:
         jnz rd_loop
         ret
 
+
+_CPU:
+    ret
+
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
-
-	call canonical_off
-	print clear, clear_length	; limpia la pantalla
-	call start_screen	; Esto puesto que consola no bloquea casi no se ve
-	mov r8, board + 40 + 29 * (column_cells+2) ; Modifiquen esto y verán el efecto que genera sobre la pantalla
+    print "Hola",4
+    call _read_text
+    call _read_data
+    call exit
+	;;call canonical_off
+	;print clear, clear_length	; limpia la pantalla
+	;;call start_screen	; Esto puesto que consola no bloquea casi no se ve
+	;;mov r8, board + 40 + 29 * (column_cells+2) ; Modifiquen esto y verán el efecto que genera sobre la pantalla
 ;Estudien esto, en R8 lo que queda definido es una dirección muy específica de memoria
 	
 	
 	.main_loop:
-		mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
+
+
+
+	;;;;	mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
 ;También estudien esto, en esa dirección específica se está escribiendo un valor
 ; de 35, que corresponde a  # y es lo que se imprime en pantalla
 ; Vea los direccionamiento de 86, vea lo que ocurre si descomentan las siguientes lineas
@@ -447,41 +457,41 @@ _start:
         ;mov byte [r8-1], 35 
         ; waooo vieron, será que se pueden detectar colisiones comparando 
 ; valores contenidos en memoria????
-		print board, board_size				
+		;;;;;;print board, board_size				
 		; aca viene la logica de reconocer tecla y actuar
-	.read_more:	
-		getchar	
-		
-		cmp rax, 1
-    	jne .done
-		
-		mov al,[input_char]
-
-		cmp al, 'a'
-	    jne .not_left
-	    dec r8
-	    jmp .done
-		
-		.not_left:
-		 	cmp al, 'd'
-	    	jne .not_right
-	    	inc r8
-    		jmp .done		
-
-		.not_right:
-
-    		cmp al, 'q' ;prueben apretar q v eran que se sale
-    		je exit
-
-			jmp .read_more
-		
-		.done:	
+	;;.read_more:	
+	;;	getchar	
+	;;	
+	;;	cmp rax, 1
+    ;;	jne .done
+	;;	
+	;;	mov al,[input_char]
+;;
+;;		cmp al, 'a'
+;;	    jne .not_left
+;;	    dec r8
+;;	    jmp .done
+;;;;		
+	;;	.not_left:
+	;;	 	cmp al, 'd'
+	  ;;  	jne .not_right
+	    ;;	inc r8
+    	;;	jmp .done		
+;;
+;;		.not_right:
+;;
+  ;;  		cmp al, 'q' ;prueben apretar q v eran que se sale
+    ;;		je exit
+;;
+;;			jmp .read_more
+;;		
+;;		.done:	
 			;unsetnonblocking		
-			sleeptime	
-			print clear, clear_length
-    		jmp .main_loop
+;;			sleeptime	
+;;			print clear, clear_length
+  		jmp .main_loop
 
-		print clear, clear_length
+;;		print clear, clear_length
 		
 		jmp exit
 
