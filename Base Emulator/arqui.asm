@@ -131,6 +131,16 @@ section .data ;variables globales se agregan aqui
 	VMIN:			equ 6
 	CC_C:			equ 18
 
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;.data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    load_byte_buffer: db 0,0
+    instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
+    data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
+
+    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
+    filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;fin .data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 section .text
 
 ;Acá va el código que se va a utilizar
@@ -219,10 +229,208 @@ write_stdin_termios:
         ret
 
 ;;;;;;;;;;;;;;;;;;;;final de lo de la terminal;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;INICIO DE FUNCIONES DEL EMULADOR;;;;;;;;;;
+
+_input_for_emu:
+    ret
+
+_read_text:
+    ;file open
+    mov rax,2
+    mov rdi,filename_text
+    mov rsi,0
+    mov rdx,0
+    syscall
+
+    mov rcx,0 ;contador
+    mov rdi,rax
+    mov r8,0
+    mov r9,0
+
+    rt_loop:
+    ;file read to buffer
+        push rcx
+        push rdi
 
 
+        mov rax,0
+
+        mov rsi,load_byte_buffer
+        mov rdx,2
+        syscall
+        cmp rax,1
+        jz rt_loop_end
+
+        mov r8,[load_byte_buffer]
+        mov r9,[load_byte_buffer+1]
+        and r8,0xFF
+        and r9,0xFF
+        cmp r8,10
+        jz rt_nl
+        rt_clean:
+        cmp r8,57
+        jle rt_num1
+        jmp rt_let1
+        rt_num1:
+            sub r8,48
+            jmp rt_byte2
+        rt_let1:
+            sub r8,87
+            and r8,0xFF
+            jmp rt_byte2
+        rt_nl:
+            mov r8,r9
+
+            mov rax,0
+            pop rdi
+            push rdi
+
+            mov rsi,load_byte_buffer
+            mov rdx,1
+            syscall
+
+            mov r9,[load_byte_buffer]
+            and r9,0xFF
+            jmp rt_clean
+
+        rt_byte2:
+        cmp r9,57
+        jle rt_num2
+        jmp rt_let2
+
+        rt_num2:
+            sub r9,48
+            and r9,0xFF
+            jmp rt_deco
+        rt_let2:
+            sub r9,87
+            and r9,0xFF
+            jmp rt_deco
+        rt_deco:
+        mov rax,r8
+        mov r8,16
+        mul r8
+        mov r8,rax
+        
+        add r8,r9
+
+        jmp rt_next_loop
+    rt_loop_end:
+        pop rdi
+        pop rcx
+        ret
+    rt_next_loop:
+        pop rdi
+        pop rcx
+
+        mov byte [instruction_buffer + rcx],r8b ;Guarda el dato en memoria antes del siguiente salto
+
+        inc rcx
+        cmp rcx,4000000
+        jnz rt_loop
+        ret
+
+_read_data:
+    ;file open
+    mov rax,2
+    mov rdi,filename_data
+    mov rsi,0
+    mov rdx,0
+    syscall
+
+    mov rcx,0 ;contador
+    mov rdi,rax
+    mov r8,0
+    mov r9,0
+
+    rd_loop:
+    ;file read to buffer
+        push rcx
+        push rdi
+
+
+        mov rax,0
+
+        mov rsi,load_byte_buffer
+        mov rdx,2
+        syscall
+        cmp rax,1
+        jz rd_loop_end
+
+        mov r8,[load_byte_buffer]
+        mov r9,[load_byte_buffer+1]
+        and r8,0xFF
+        and r9,0xFF
+        cmp r8,10
+        jz rd_nl
+        rd_clean:
+        cmp r8,57
+        jle rd_num1
+        jmp rd_let1
+        rd_num1:
+            sub r8,48
+            ;and r8,0x0F
+            jmp rd_byte2
+        rd_let1:
+            sub r8,87
+            and r8,0xFF
+            jmp rd_byte2
+        rd_nl:
+            mov r8,r9
+
+            mov rax,0
+            pop rdi
+            push rdi
+
+            mov rsi,load_byte_buffer
+            mov rdx,1
+            syscall
+
+            mov r9,[load_byte_buffer]
+            and r9,0xFF
+            jmp rd_clean
+
+        rd_byte2:
+        cmp r9,57
+        jle rd_num2
+        jmp rd_let2
+
+        rd_num2:
+            sub r9,48
+            and r9,0xFF
+            jmp rd_deco
+        rd_let2:
+            sub r9,87
+            and r9,0xFF
+            jmp rd_deco
+        rd_deco:
+        mov rax,r8
+        mov r8,16
+        mul r8
+        mov r8,rax
+        
+        add r8,r9
+
+        jmp rd_next_loop
+    rd_loop_end:
+        pop rdi
+        pop rcx
+        ret
+    rd_next_loop:
+        pop rdi
+        pop rcx
+
+        mov byte [data_buffer + rcx],r8b ;Guarda el dato en memoria antes del siguiente salto
+
+        inc rcx
+        cmp rcx,4000000
+        jnz rd_loop
+        ret
+
+;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
+
 	call canonical_off
 	print clear, clear_length	; limpia la pantalla
 	call start_screen	; Esto puesto que consola no bloquea casi no se ve

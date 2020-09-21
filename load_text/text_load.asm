@@ -1,22 +1,16 @@
 section .data
-    ;hex_to_dec: db "0123456789abcdef",0
     load_byte_buffer: db 0,0
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
-    ;instruction_opcodes: TIMES 10000 db 0 ; guarda los opcodes de las 10000 instrucciones de instruction_buffer
     filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
 
-    ;example: db "HOLA PUTOS",10
-    ;example2: db "HOLA2PUTOS",10
-    ;example3: db "HOLA3PUTOS",10
-    ;nl: db 10
 section .text
 global _start
 
 
-_wait_for_input:
+_input_for_emu:
     ret
 
 _read_text:
@@ -222,12 +216,9 @@ _read_data:
 
 _exit:
     mov rax,60
-    ;pop rdi
     mov rdi,0
     syscall
 _start:
-    mov r8,85
-    _stop2:
     call _wait_for_input
     call _read_text
     call _exit
