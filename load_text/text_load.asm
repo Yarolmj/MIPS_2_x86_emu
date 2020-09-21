@@ -1,11 +1,3 @@
-%macro printint 1
-    mov rax,1
-    mov rdi,1
-    mov rsi,%1
-    mov rdx,1
-    syscall
-%endmacro
-
 section .data
     ;hex_to_dec: db "0123456789abcdef",0
     load_byte_buffer: db 0,0
@@ -26,7 +18,6 @@ global _start
 
 _wait_for_input:
     ret
-_traslade_opcodes:
 
 _read_text:
     ;file open
