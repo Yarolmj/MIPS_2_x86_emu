@@ -1,3 +1,4 @@
 build:
-	nasm -f elf64 -o arqui.o arqui.asm
+	nasm -f elf64 -gstabs -o arqui.o arqui.asm
 	ld -o arqui arqui.o
+	gdb arqui

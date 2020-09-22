@@ -56,7 +56,10 @@ msg4_length:	equ $-msg4
 
 
 ;Investiguen cómo hacer macros en assembler, es muy util y le pueden poner argumentos 
-
+%macro caso 3
+    cmp %1,%2
+    jz %3
+%endmacro
 
 
 ; Este par que están tienen que ver con lo de consola y no bloquearla, uselos tal cual
@@ -149,7 +152,7 @@ section .data ;variables globales se agregan aqui
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
-    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
+    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/wow_hex.txt",0
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
@@ -596,13 +599,153 @@ extract_from_instruction:
         ret
 
 ;;;EMULA EL CPU
-_CPU:
-    mov rdi,8
+CPU:
+    ;;; Extrae el opcode
+    mov rdi,0
     call extract_from_instruction
-    p:
 
+    mov r9,rax
+    ;;;Dirige el proceso a la instruccion correspondiente
+    caso r9,0,CPU_R
+    caso r9,2,CPU_jump
+    caso r9,3,CPU_jal
+    caso r9,4,CPU_beq
+    caso r9,5,CPU_bne
+    caso r9,6,CPU_blez
+    caso r9,8,CPU_addi
+    caso r9,9,CPU_addiu
+    caso r9,10,CPU_slti
+    caso r9,11,CPU_sltiu
+    caso r9,12,CPU_andi
+    caso r9,13,CPU_ori
+    caso r9,14,CPU_xori
+    caso r9,15,CPU_lui
+    caso r9,28,CPU_mul
+    caso r9,32,CPU_lb
+    caso r9,35,CPU_lw
+    caso r9,36,CPU_lbu
+    caso r9,37,CPU_lhu
+    caso r9,40,CPU_sb
+    caso r9,41,CPU_sh
+    caso r9,43,CPU_sw
+    
 
-    ret
+    call exit
+    CPU_R:
+        mov rdi,5
+        call extract_from_instruction
+        mov r9,rax
+        
+        caso r9,0,CPU_sll
+        caso r9,2,CPU_srl
+        caso r9,12,CPU_Syscall
+        caso r9,13,exit
+        caso r9,16,CPU_mfhi
+        caso r9,18,CPU_mflo
+        caso r9,24,CPU_mult
+        caso r9,25,CPU_multu
+        caso r9,26,CPU_div_e
+        caso r9,27,CPU_divu_e
+        caso r9,32,CPU_add
+        caso r9,33,CPU_addu
+        caso r9,34,CPU_sub
+        caso r9,35,CPU_subu
+        caso r9,36,CPU_and
+        caso r9,37,CPU_or
+        caso r9,38,CPU_xor
+        caso r9,39,CPU_nor
+        caso r9,42,CPU_slt
+        caso r9,43,CPU_sltu
+        jmp CPU_END ;;Ninguna de las anteriores
+    
+    CPU_sll:
+        
+        jmp CPU_END
+    CPU_srl:
+        jmp CPU_END
+    CPU_Syscall:
+        jmp CPU_END
+    CPU_mfhi:
+        jmp CPU_END
+    CPU_mflo:
+        jmp CPU_END
+    CPU_mult:
+        jmp CPU_END
+    CPU_multu:
+        jmp CPU_END
+    CPU_div_e:
+        jmp CPU_END
+    CPU_divu_e:
+        jmp CPU_END
+    CPU_add:
+        jmp CPU_END
+    CPU_addu:
+        jmp CPU_END
+    CPU_sub:
+        jmp CPU_END
+    CPU_subu:
+        jmp CPU_END
+    CPU_and:
+        jmp CPU_END
+    CPU_or:
+        jmp CPU_END
+    CPU_xor:
+        jmp CPU_END
+    CPU_nor:
+        jmp CPU_END
+    CPU_slt:
+        jmp CPU_END
+    CPU_sltu:
+        jmp CPU_END
+
+    CPU_jump:
+        jmp CPU_END
+    CPU_jal:
+        jmp CPU_END
+    CPU_beq:
+        jmp CPU_END
+    CPU_bne:
+        jmp CPU_END
+    CPU_blez:
+        jmp CPU_END
+    CPU_addi:
+        jmp CPU_END
+    CPU_addiu:
+        jmp CPU_END
+    CPU_slti:
+        jmp CPU_END
+    CPU_sltiu:
+        jmp CPU_END
+    CPU_andi:
+        jmp CPU_END
+    CPU_ori:
+        jmp CPU_END
+    CPU_xori:
+        jmp CPU_END
+    CPU_lui:
+        jmp CPU_END
+    CPU_mul:
+        jmp CPU_END
+    CPU_lb:
+        jmp CPU_END
+    CPU_lw:
+        jmp CPU_END
+    CPU_lbu:
+        jmp CPU_END
+    CPU_lhu:
+        jmp CPU_END
+    CPU_sb:
+        jmp CPU_END
+    CPU_sh:
+        jmp CPU_END
+    CPU_sw:
+        jmp CPU_END
+        
+    CPU_END:
+        mov r9,[pc_address]
+        add r9,4
+        mov dd[pc_address],r9
+        ret
 
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
@@ -610,8 +753,9 @@ _start:
     
     call _read_text
     call _read_data
-    call _CPU
-    call exit
+    
+    
+    ;call exit
 	;;call canonical_off
 	;print clear, clear_length	; limpia la pantalla
 	;;call start_screen	; Esto puesto que consola no bloquea casi no se ve
@@ -620,8 +764,8 @@ _start:
 	
 	
 	.main_loop:
-
-
+        call CPU
+        p:
 
 	;;;;	mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
 ;También estudien esto, en esa dirección específica se está escribiendo un valor
