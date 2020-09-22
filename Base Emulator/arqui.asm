@@ -9,6 +9,17 @@ sys_nanosleep:	equ 35
 sys_time:	equ 201
 sys_fcntl:	equ 72
 
+
+; Asigno nombres a cada parte de las intrucciones
+opcode: equ 0
+reg_rs: equ 1
+reg_rt: equ 2
+reg_rd: equ 3
+shamt: equ 4
+funct: equ 5
+imm_sig: equ 6
+imm_nsig: equ 7
+address: equ 8
 ; Leer de consola es a través de STDIN
 STDIN_FILENO: equ 0
 ;Necesario para limpiar consona
@@ -45,6 +56,8 @@ msg4_length:	equ $-msg4
 
 
 ;Investiguen cómo hacer macros en assembler, es muy util y le pueden poner argumentos 
+
+
 
 ; Este par que están tienen que ver con lo de consola y no bloquearla, uselos tal cual
 %macro setnonblocking 0
@@ -139,6 +152,11 @@ section .data ;variables globales se agregan aqui
     filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
 
+    reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
+
+    pc_base_address: dd 0x00400000 ;;;;;Direccion base de las instrucciones
+
+    pc_address: dd 0 ;;;Direccion pc actual 
     ;;;;;;;;;;;;;;;;;;;;;;;;;fin .data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 section .text
@@ -427,16 +445,172 @@ _read_data:
         jnz rd_loop
         ret
 
+;;;rdi = elemento a extraer 0 = opcode, 1 = rs, 2 = rt, 3 = rd, 4 = shamt, 5 = funct, 6 = imm con signo, 7 = imm sin signo,8 = address
+extract_from_instruction:
+    ;Opcode
+    mov r8,[pc_address]
+    
+    ;;;;;;;;Simil de un switch case
+    cmp rdi,0
+    jz efi_opcode
 
+    cmp rdi,1
+    jz efi_rs
+    
+    cmp rdi,2
+    jz efi_rt
+
+    cmp rdi,3
+    jz efi_rd
+
+    cmp rdi,4
+    jz efi_shamt
+
+    cmp rdi,5
+    jz efi_funct
+
+    cmp rdi,6
+    jz efi_SignExtImm
+
+    cmp rdi,7
+    jz efi_ZeroExtImm
+
+    cmp rdi,8
+    jz efi_address
+
+    ;;Si no es ninguna cierra el programa inmediatamente
+    call exit
+    efi_opcode:
+        mov r9,[instruction_buffer+r8]
+        and r9,0x3F ; 1111 1100
+        
+        shr r9,2
+        mov rax,r9
+        ret
+    efi_rs:
+        mov r9,[instruction_buffer+r8]
+        and r9,0x3 ; 0000 0011
+        mov r10,[instruction_buffer+r8+1]
+        and r10,0xE0; 1110 0000
+
+        shl r9,3
+        shr r10,5
+
+        add r9,r10
+        mov rax,r9
+        ret
+
+    efi_rt:
+        mov r9,[instruction_buffer+r8+1]
+        and r9,0x1F ; 0001 1111
+        
+        mov rax,r9
+        ret
+
+    efi_rd:
+        mov r9,[instruction_buffer+r8+2]
+        and r9,0xF8 ; 1111 1000
+        
+        shr r9,3
+        mov rax,r9
+        ret
+    
+    efi_shamt:
+        mov r9,[instruction_buffer+r8+2]
+        and r9,0x7 ; 0000 0111
+        mov r10,[instruction_buffer+r8+3]
+        and r10,0xC0   ; 1100 0000
+
+        shl r9,2
+        shr r10,6
+
+        add r9,r10
+        mov rax,r9
+        ret
+
+    efi_funct:
+        mov r9,[instruction_buffer+r8+3]
+        and r9,0x3F ; 0011 1111
+
+        mov rax,r9
+        ret
+    efi_SignExtImm:
+        mov r9,[instruction_buffer+r8+2]
+        and r9,0xFF ; 1111 1111
+        mov r10,[instruction_buffer+r8+3]
+        and r10,0xFF ; 1111 1111
+
+        shl r9,8
+        add r9,r10
+
+        ;;Ahora la parte del signo
+        mov r10,r9
+        shr r10,15
+
+        cmp r10,1
+        jz efi_SignExtImm_minus
+        ;;; es positivo
+        mov rax,r9
+        ret
+        ;;; es negativo
+        efi_SignExtImm_minus:
+            or r9,0xFFFFFFFFFFFF0000 ;; 32x1 1111 1111
+            mov rax,r9
+            ret
+    efi_ZeroExtImm:
+        mov r9,[instruction_buffer+r8+2]
+        and r9,0xFF ; 1111 1111
+        mov r10,[instruction_buffer+r8+3]
+        and r10,0xFF ; 1111 1111
+
+        shl r9,8
+        add r9,r10
+
+        mov rax,r9
+        ret
+    efi_address:
+        mov r10,0
+        
+        mov r9,[instruction_buffer+r8+3]
+        and r9,0xFF
+        add r10,r9
+
+        mov r9,[instruction_buffer+r8+2]
+        and r9,0xFF
+        shl r9,8
+        add r10,r9
+
+        mov r9,[instruction_buffer+r8+1]
+        and r9,0xFF
+        shl r9,16
+        add r10,r9
+
+        mov r9,[instruction_buffer+r8]
+        and r9,0x3
+        shl r9,24
+        add r10,r9
+
+        shl r10,2 ;;r10*4
+
+        mov rax,r10
+        ret
+
+;;;EMULA EL CPU
 _CPU:
+    mov rdi,8
+    call extract_from_instruction
+    p:
+
+
     ret
 
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
-    print "Hola",4
+    
     call _read_text
     call _read_data
+    call _CPU
     call exit
 	;;call canonical_off
 	;print clear, clear_length	; limpia la pantalla
