@@ -642,6 +642,52 @@ _mul:
     mov dword[reg+r8*4],eax ;;Guardo lo en rd
     ret
 
+_multu:
+    mov eax,[reg+rbx*4];;cargo rs
+    mov r9d,[reg+rcx*4];;cargo rt
+    mov r8,rdx
+    mul r9d
+    
+    mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
+    mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
+    ret
+
+_add:
+    mov r8d,[reg+rbx*4]
+    add r8d,[reg+rcx*4]
+    mov dword[reg+rdx*4],r8d
+    ret
+_and:
+    mov r8d,dword[reg+rbx*4]
+    mov r9d,dword[reg+rcx*4]
+    and r8d,r9d
+    mov dword[reg+rdx*4],r8d
+    ret
+_or:
+    mov r8d,dword[reg+rbx*4]
+    mov r9d,dword[reg+rcx*4]
+    or r8d,r9d
+    mov dword[reg+rdx*4],r8d
+    ret
+_xor:
+    mov r8d,dword[reg+rbx*4]
+    mov r9d,dword[reg+rcx*4]
+    xor r8d,r9d
+    mov dword[reg+rdx*4],r8d
+    ret
+_nor:
+    mov r8d,dword[reg+rbx*4]
+    mov r9d,dword[reg+rcx*4]
+    or r8d,r9d
+    not r8d 
+    mov dword[reg+rdx*4],r8d
+    ret
+
+_addu:
+    mov r8d,[reg+rbx*4]
+    add r8d,[reg+rcx*4]
+    mov dword[reg+rdx*4],r8d
+    ret
 ;;;EMULA EL CPU
 _CPU:
     ;;; Extrae el opcode
@@ -733,26 +779,53 @@ _CPU:
         call _mult
         jmp CPU_END
     CPU_multu:;Y
+        extract rs,rbx
+        extract rt,rcx
+        call _multu
         jmp CPU_END
     CPU_div_e:;R
         jmp CPU_END
     CPU_divu_e:;R
         jmp CPU_END
     CPU_add:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _add
         jmp CPU_END
     CPU_addu:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _addu
         jmp CPU_END
     CPU_sub:;R
         jmp CPU_END
     CPU_subu:;R
         jmp CPU_END
     CPU_and:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _and
         jmp CPU_END
     CPU_or:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _or
         jmp CPU_END
     CPU_xor:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _xor
         jmp CPU_END
     CPU_nor:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _nor
         jmp CPU_END
     CPU_slt:;R
         jmp CPU_END
@@ -773,7 +846,6 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract SigImm,rdx
-        p:
         call _addi
         jmp CPU_END
     CPU_addiu:;R
@@ -790,7 +862,7 @@ _CPU:
         jmp CPU_END
     CPU_lui:;R
         jmp CPU_END
-    CPU_mul:;R
+    CPU_mul:;Y
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
