@@ -163,6 +163,8 @@ section .data ;variables globales se agregan aqui
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
+    hi_reg: dd 0
+    lo_reg: dd 0
 
     pc_base_address: dd 0x00400000 ;;;;;Direccion base de las instrucciones
 
@@ -489,7 +491,7 @@ extract_from_instruction:
     call exit
     efi_opcode:
         mov r9,[instruction_buffer+r8]
-        and r9,0x3F ; 1111 1100
+        and r9,0xFC ; 1111 1100
         
         shr r9,2
         mov rax,r9
@@ -609,7 +611,7 @@ _sll:
     ret
 _srl:
     mov r8,[reg+rbx*4]
-    and r8,0xFFFFFFFF ;;Elimina los bites innecesarios;;;; CUIAO CON LOS NEGATIVOS
+    ;and r8,0xFFFFFFFF ;;Elimina los bites innecesarios;;;; CUIAO CON LOS NEGATIVOS
     shr r8,cl
     mov dword[reg+rdx*4],r8d
     ret
@@ -620,12 +622,31 @@ _addi:
     add dword[reg+rcx*4],edx
     ret
 
+_mult:
+    mov eax,[reg+rbx*4];;cargo rs
+    mov r9d,[reg+rcx*4];;cargo rt
+    imul r9d
+    
+    mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
+    mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
+    ret
+
+_mul:
+    mov eax,[reg+rbx*4];;cargo rs
+    mov r9d,[reg+rcx*4];;cargo rt
+    imul r9d
+    
+    mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
+    mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
+    mov dword[reg+rdx*4],eax ;;Guardo lo en rd
+    ret
+
 ;;;EMULA EL CPU
 _CPU:
     ;;; Extrae el opcode
     mov rdi,0
     call extract_from_instruction
-
+    opcode_dec:
     mov r9,rax
     ;;;Dirige el proceso a la instruccion correspondiente
     caso r9,0,CPU_R
@@ -706,6 +727,9 @@ _CPU:
     CPU_mflo:;R
         jmp CPU_END
     CPU_mult:;Y
+        extract rs,rbx
+        extract rt,rcx
+        call _mult
         jmp CPU_END
     CPU_multu:;Y
         jmp CPU_END
@@ -766,6 +790,10 @@ _CPU:
     CPU_lui:;R
         jmp CPU_END
     CPU_mul:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _mul
         jmp CPU_END
     CPU_lb:;Y
         jmp CPU_END
