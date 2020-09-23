@@ -634,11 +634,12 @@ _mult:
 _mul:
     mov eax,[reg+rbx*4];;cargo rs
     mov r9d,[reg+rcx*4];;cargo rt
+    mov r8,rdx
     imul r9d
     
     mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
     mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
-    mov dword[reg+rdx*4],eax ;;Guardo lo en rd
+    mov dword[reg+r8*4],eax ;;Guardo lo en rd
     ret
 
 ;;;EMULA EL CPU
