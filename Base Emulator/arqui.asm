@@ -12,13 +12,13 @@ sys_fcntl:	equ 72
 
 ; Asigno nombres a cada parte de las intrucciones
 opcode: equ 0
-reg_rs: equ 1
-reg_rt: equ 2
-reg_rd: equ 3
+rs: equ 1
+rt: equ 2
+rd: equ 3
 shamt: equ 4
 funct: equ 5
-imm_sig: equ 6
-imm_nsig: equ 7
+SigImm: equ 6
+ZeroImm: equ 7
 address: equ 8
 ; Leer de consola es a través de STDIN
 STDIN_FILENO: equ 0
@@ -59,6 +59,13 @@ msg4_length:	equ $-msg4
 %macro caso 3
     cmp %1,%2
     jz %3
+%endmacro
+
+
+%macro extract 2
+    mov rdi,%1
+    call extract_from_instruction
+    mov %2,rax
 %endmacro
 
 
@@ -152,7 +159,7 @@ section .data ;variables globales se agregan aqui
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
-    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/wow_hex.txt",0
+    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
@@ -251,9 +258,6 @@ write_stdin_termios:
 
 ;;;;;;;;;;;;;;;;;;;;final de lo de la terminal;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;INICIO DE FUNCIONES DEL EMULADOR;;;;;;;;;;
-
-_input_for_emu:
-    ret
 
 _read_text:
     ;file open
@@ -597,9 +601,27 @@ extract_from_instruction:
 
         mov rax,r10
         ret
+;;;;; FUNCIONES BASICAS DE MIPS;;;;;;;;;
+_sll:
+    mov r8,[reg+rbx*4]
+    shl r8,cl
+    mov dword[reg+rdx*4],r8d
+    ret
+_srl:
+    mov r8,[reg+rbx*4]
+    and r8,0xFFFFFFFF ;;Elimina los bites innecesarios;;;; CUIAO CON LOS NEGATIVOS
+    shr r8,cl
+    mov dword[reg+rdx*4],r8d
+    ret
+_addi:
+    mov r8,[reg+rbx*4]
+    ;and r8,0xFFFFFFFF
+    mov dword[reg+rcx*4],r8d
+    add dword[reg+rcx*4],edx
+    ret
 
 ;;;EMULA EL CPU
-CPU:
+_CPU:
     ;;; Extrae el opcode
     mov rdi,0
     call extract_from_instruction
@@ -632,6 +654,12 @@ CPU:
 
     call exit
     CPU_R:
+        ;;;;;Para que se salga si no encuentra mas instrucciones
+        mov r9d,[pc_address]
+        mov r9d,[instruction_buffer+r9d]
+        cmp r9d,0
+        jz exit
+
         mov rdi,5
         call extract_from_instruction
         mov r9,rax
@@ -656,12 +684,20 @@ CPU:
         caso r9,39,CPU_nor
         caso r9,42,CPU_slt
         caso r9,43,CPU_sltu
-        jmp CPU_END ;;Ninguna de las anteriores
-    
-    CPU_sll:
         
+        call exit    
+    CPU_sll:
+        extract rt,rbx
+        extract rd,rdx
+        extract shamt,rcx
+        call _sll
+
         jmp CPU_END
     CPU_srl:
+        extract rt,rbx
+        extract rd,rdx
+        extract shamt,rcx
+        call _srl
         jmp CPU_END
     CPU_Syscall:
         jmp CPU_END
@@ -709,6 +745,11 @@ CPU:
     CPU_blez:
         jmp CPU_END
     CPU_addi:
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        p:
+        call _addi
         jmp CPU_END
     CPU_addiu:
         jmp CPU_END
@@ -744,7 +785,8 @@ CPU:
     CPU_END:
         mov r9,[pc_address]
         add r9,4
-        mov dd[pc_address],r9
+        mov dword [pc_address],r9d
+        ;mov byte [instruction_buffer + rcx],r8b ;Guarda el dato en memoria antes del siguiente salto
         ret
 
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
@@ -763,10 +805,10 @@ _start:
 ;Estudien esto, en R8 lo que queda definido es una dirección muy específica de memoria
 	
 	
-	.main_loop:
-        call CPU
-        p:
+	main_loop:
+        call _CPU
 
+        pause:
 	;;;;	mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
 ;También estudien esto, en esa dirección específica se está escribiendo un valor
 ; de 35, que corresponde a  # y es lo que se imprime en pantalla
@@ -807,7 +849,7 @@ _start:
 			;unsetnonblocking		
 ;;			sleeptime	
 ;;			print clear, clear_length
-  		jmp .main_loop
+  		jmp main_loop
 
 ;;		print clear, clear_length
 		
