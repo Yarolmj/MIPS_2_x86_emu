@@ -721,6 +721,15 @@ _lb:
         and r9d,0xFF
         mov dword[reg+rcx*4],r9d
         ret
+_lbu:
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    add r8d,edx
+    sub r8d,MEM_offset
+    mov r9b,[data_buffer+r8d]
+    and r9d,0xFF ;; Elimina signo
+    mov dword[reg+rcx*4],r9d ;;Guarda en registro
+    ret
 _lw:
     mov r8,0
     mov r8d,[reg+rbx*4]
@@ -955,6 +964,10 @@ _CPU:
         call _lw
         jmp CPU_END
     CPU_lbu:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _lbu
         jmp CPU_END
     CPU_lhu:;Y
         jmp CPU_END
