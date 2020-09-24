@@ -706,7 +706,6 @@ _lb:
     mov r8d,[reg+rbx*4]
     add r8d,edx
     sub r8d,MEM_offset
-    p:
     mov r9b,[data_buffer+r8d]
     mov r10,r9
     and r10,0x80
@@ -720,6 +719,23 @@ _lb:
         ret
     _lb_plus:
         and r9d,0xFF
+        mov dword[reg+rcx*4],r9d
+        ret
+_lw:
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    cmp r8d,0xFFFF0000
+    jz _lw_input
+    cmp r8d,0xFFFF0004
+    jz _lw_input
+    add r8d,edx
+    sub r8d,MEM_offset
+    mov r9d,[data_buffer+r8d]
+    mov dword[reg+rcx*4],r9d
+    ret
+    _lw_input:
+        mov r9b,[input_char]
+        and r9b,0xFF
         mov dword[reg+rcx*4],r9d
         ret
 _lui:
@@ -933,6 +949,10 @@ _CPU:
         call _lb
         jmp CPU_END
     CPU_lw:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _lw
         jmp CPU_END
     CPU_lbu:;Y
         jmp CPU_END
@@ -955,69 +975,21 @@ _CPU:
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
-    
+    call canonical_off
     call _read_text
     call _read_data
     call _fix_data
-    
-    
-    ;call exit
-	;;call canonical_off
-	;print clear, clear_length	; limpia la pantalla
-	;;call start_screen	; Esto puesto que consola no bloquea casi no se ve
-	;;mov r8, board + 40 + 29 * (column_cells+2) ; Modifiquen esto y verán el efecto que genera sobre la pantalla
-;Estudien esto, en R8 lo que queda definido es una dirección muy específica de memoria
 	
-	
-	main_loop:
+	.main_loop:
         call _CPU
-
-        pause:
-	;;;;	mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
-;También estudien esto, en esa dirección específica se está escribiendo un valor
-; de 35, que corresponde a  # y es lo que se imprime en pantalla
-; Vea los direccionamiento de 86, vea lo que ocurre si descomentan las siguientes lineas
-        ;mov byte [r8+1], 35 
-        ;mov byte [r8-1], 35 
-        ; waooo vieron, será que se pueden detectar colisiones comparando 
-; valores contenidos en memoria????
-		;;;;;;print board, board_size				
-		; aca viene la logica de reconocer tecla y actuar
-	;;.read_more:	
-	;;	getchar	
-	;;	
-	;;	cmp rax, 1
-    ;;	jne .done
-	;;	
-	;;	mov al,[input_char]
-;;
-;;		cmp al, 'a'
-;;	    jne .not_left
-;;	    dec r8
-;;	    jmp .done
-;;;;		
-	;;	.not_left:
-	;;	 	cmp al, 'd'
-	  ;;  	jne .not_right
-	    ;;	inc r8
-    	;;	jmp .done		
-;;
-;;		.not_right:
-;;
-  ;;  		cmp al, 'q' ;prueben apretar q v eran que se sale
-    ;;		je exit
-;;
-;;			jmp .read_more
-;;		
-;;		.done:	
-			;unsetnonblocking		
-;;			sleeptime	
-;;			print clear, clear_length
-  		jmp main_loop
-
-;;		print clear, clear_length
-		
-		jmp exit
+        .read_more:	
+        getchar
+        jmp .done
+        .done:	
+            unsetnonblocking		
+            sleeptime	
+            print clear, clear_length
+            jmp .main_loop
 
 
 start_screen:
