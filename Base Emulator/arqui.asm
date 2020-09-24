@@ -20,6 +20,9 @@ funct: equ 5
 SigImm: equ 6
 ZeroImm: equ 7
 address: equ 8
+
+MEM_offset: equ 268500992
+pc_base_address: equ 4194304
 ; Leer de consola es a través de STDIN
 STDIN_FILENO: equ 0
 ;Necesario para limpiar consona
@@ -159,14 +162,12 @@ section .data ;variables globales se agregan aqui
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
-    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex1.txt",0
-    filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/pong data hex.txt",0
+    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.text",0
+    filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.data",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
     hi_reg: dd 0
     lo_reg: dd 0
-
-    pc_base_address: dd 0x00400000 ;;;;;Direccion base de las instrucciones
 
     pc_address: dd 0 ;;;Direccion pc actual 
     ;;;;;;;;;;;;;;;;;;;;;;;;;fin .data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -454,6 +455,18 @@ _read_data:
         jnz rd_loop
         ret
 
+;;;;Pasa data_buffer de big-endian a little-endian
+_fix_data:
+    mov rcx,0
+    _fd_loop:
+        mov r8d,[data_buffer+rcx*4]
+        BSWAP r8d
+        mov dword[data_buffer+rcx*4],r8d
+        
+        inc rcx
+        cmp rcx,1000000
+        jnz _fd_loop
+    ret
 ;;;rdi = elemento a extraer 0 = opcode, 1 = rs, 2 = rt, 3 = rd, 4 = shamt, 5 = funct, 6 = imm con signo, 7 = imm sin signo,8 = address
 extract_from_instruction:
     ;Opcode
@@ -688,6 +701,44 @@ _addu:
     add r8d,[reg+rcx*4]
     mov dword[reg+rdx*4],r8d
     ret
+_lb:
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    add r8d,edx
+    sub r8d,MEM_offset
+    p:
+    mov r9b,[data_buffer+r8d]
+    mov r10,r9
+    and r10,0x80
+    
+    cmp r10,128
+    jz _lb_minus
+    jmp _lb_plus
+    _lb_minus:
+        or r9d,0xFFFFFF00
+        mov dword[reg+rcx*4],r9d
+        ret
+    _lb_plus:
+        and r9d,0xFF
+        mov dword[reg+rcx*4],r9d
+        ret
+_lui:
+    shl rcx,16
+    mov dword[reg+rbx*4],ecx
+    ret
+
+_jump:
+    sub ebx,pc_base_address
+    sub ebx,4
+    mov dword[pc_address],ebx
+    ret
+
+_jal:
+    sub ebx,pc_base_address
+    sub ebx,4
+    mov dword[pc_address],ebx
+    mov dword[reg+31*4],ebx ;;Guarda en $ra
+    ret  
 ;;;EMULA EL CPU
 _CPU:
     ;;; Extrae el opcode
@@ -833,8 +884,12 @@ _CPU:
         jmp CPU_END
 
     CPU_jump:;Y
+        extract address,rbx
+        call _jump
         jmp CPU_END
     CPU_jal:;Y
+        extract address,rbx
+        call _jal
         jmp CPU_END
     CPU_beq:;R
         jmp CPU_END
@@ -861,6 +916,9 @@ _CPU:
     CPU_xori:;R
         jmp CPU_END
     CPU_lui:;R
+        extract rt,rbx
+        extract ZeroImm,rcx
+        call _lui
         jmp CPU_END
     CPU_mul:;Y
         extract rs,rbx
@@ -869,6 +927,10 @@ _CPU:
         call _mul
         jmp CPU_END
     CPU_lb:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _lb
         jmp CPU_END
     CPU_lw:;Y
         jmp CPU_END
@@ -896,6 +958,7 @@ _start:
     
     call _read_text
     call _read_data
+    call _fix_data
     
     
     ;call exit
