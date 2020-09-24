@@ -971,7 +971,7 @@ _CPU:
         jmp CPU_END
     CPU_lhu:;Y
         jmp CPU_END
-    CPU_sb:;Y
+    CPU_sb:;Y AAAAA
         jmp CPU_END
     CPU_sh:;Y
         jmp CPU_END
