@@ -775,6 +775,104 @@ _lw:
         and r9b,0xFF
         mov dword[reg+rcx*4],r9d
         ret
+
+_sw:
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    cmp r8d,0xFFFF0000
+    jz _sw_input
+    cmp r8d,0xFFFF0004
+    jz _sw_input
+    add r8d,edx
+    sub r8d,MEM_offset
+    mov r9d,[reg+rcx*4]
+    mov dword[data_buffer + r8d],r9d
+    ret
+    _sw_input:
+        mov r9d,[reg+rcx*4]
+        mov byte[input_char],r9b
+        ret
+_lhu:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    and r8d,0xFFFF ; r8 and 0000 0000 1111 1111
+    mov dword[reg+rcx*4],r8d
+    ret
+
+_lh:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    movsx r9d,r8w
+    mov dword[reg+rcx*4],r9d
+    ret
+_sb:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9b,[reg+rcx*4]
+    mov byte[data_buffer+r8d],r9b
+    ret
+_sh:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9w,[reg+rcx*4]
+    mov word[data_buffer+r8d],r9w
+    ret
+    ret
+
+_sw:
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    cmp r8d,0xFFFF0000
+    jz _sw_input
+    cmp r8d,0xFFFF0004
+    jz _sw_input
+    add r8d,edx
+    sub r8d,MEM_offset
+    mov r9d,[reg+rcx*4]
+    mov dword[data_buffer + r8d],r9d
+    ret
+    _sw_input:
+        mov r9d,[reg+rcx*4]
+        mov byte[input_char],r9b
+        ret
+_lhu:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    and r8d,0xFFFF ; r8 and 0000 0000 1111 1111
+    mov dword[reg+rcx*4],r8d
+    ret
+
+_lh:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    movsx r9d,r8w
+    mov dword[reg+rcx*4],r9d
+    ret
+_sb:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9b,[reg+rcx*4]
+    mov byte[data_buffer+r8d],r9b
+    ret
+_sh:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9w,[reg+rcx*4]
+    mov word[data_buffer+r8d],r9w
+    ret
+    ret
 _lui:
     shl rcx,16
     mov dword[reg+rbx*4],ecx
@@ -791,6 +889,38 @@ _jal:
     sub ebx,4
     mov dword[pc_address],ebx
     mov dword[reg+31*4],ebx ;;Guarda en $ra
+    ret  
+_lhu:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    and r8d,0xFFFF ; r8 and 0000 0000 1111 1111
+    mov dword[reg+rcx*4],r8d
+    ret
+
+_lh:
+    mov r8d,[reg+rbx*4] ;Reg[rs]
+    add r8d,edx ;Reg[rs]+SignImm
+    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
+    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
+    movsx r9d,r8w
+    mov dword[reg+rcx*4],r9d
+    ret
+_sb:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9b,[reg+rcx*4]
+    mov byte[data_buffer+r8d],r9b
+    ret
+_sh:
+    mov r8d,[reg+rbx*4];Reg[rs]
+    add r8d,edx ; Reg[rs] + SignImm
+    sub r8d,MEM_offset
+    mov r9w,[reg+rcx*4]
+    mov word[data_buffer+r8d],r9w
+    ret
     ret
 _mfhi:;R
     mov dword[reg+rdx*4],hi_reg
@@ -1026,6 +1156,7 @@ _CPU:
     caso r9,15,CPU_lui
     caso r9,28,CPU_mul
     caso r9,32,CPU_lb
+    caso r9,33,CPU_lh
     caso r9,35,CPU_lw
     caso r9,36,CPU_lbu
     caso r9,37,CPU_lhu
@@ -1258,6 +1389,12 @@ _CPU:
         extract SigImm,rdx
         call _lb
         jmp CPU_END
+    CPU_lh:
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx 
+        call _lh
+        jmp CPU_END
     CPU_lw:;Y
         extract rs,rbx
         extract rt,rcx
@@ -1271,12 +1408,28 @@ _CPU:
         call _lbu
         jmp CPU_END
     CPU_lhu:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx 
+        call _lhu
         jmp CPU_END
     CPU_sb:;Y AAAAA
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _sb
         jmp CPU_END
     CPU_sh:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _sh
         jmp CPU_END
     CPU_sw:;Y
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
+        call _sw
         jmp CPU_END
         
     CPU_END:
