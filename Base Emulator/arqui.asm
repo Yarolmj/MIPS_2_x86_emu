@@ -151,7 +151,7 @@ input_int:  resb 20
 
 section .data ;variables globales se agregan aqui
 ;Esto se inicializa antes de que el código se ejecute
-
+beep db 7 ; "BELL"
 		
 
 	board: ;Noten que esto es una dirección de memoria donde ustedes tendran que escribir
@@ -939,11 +939,19 @@ _syscall:
     caso r8,11,print_caracter
     caso r8,13,open_file
     caso r8,17,terminate_with_value
+    caso r8,31,MIDI
     caso r8,32,sleep
     caso r8,40,Init_random_generator
     caso r8,41,random_int
     caso r8,42,random_int_range
     ret
+    MIDI:
+        mov eax, 1
+	    mov edi, 1
+	    mov rsi, beep
+	    mov edx,1
+	    syscall
+        ret
     print_integer:
         print [reg + 4*4], 256
         ret
@@ -976,7 +984,7 @@ _syscall:
         mov r10, [reg + 6*4]
 
         ret
-    terminate_with_value:
+    terminate_with_value:;no se usa
         mov rax, [reg+4*4]
         call exit
         ret
@@ -989,9 +997,9 @@ _syscall:
         ret
     Init_random_generator:;no se utiliza en el pong
         ret
-    random_int:
+    random_int:;no se usa 
         ret
-    random_int_range:
+    random_int_range: ;no se usa en pong pero si en wow
         ret
 
 ;;;EMULA EL CPU
