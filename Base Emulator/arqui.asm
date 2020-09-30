@@ -872,7 +872,6 @@ _sh:
     mov r9w,[reg+rcx*4]
     mov word[data_buffer+r8d],r9w
     ret
-    ret
 _lui:
     shl rcx,16
     mov dword[reg+rbx*4],ecx
