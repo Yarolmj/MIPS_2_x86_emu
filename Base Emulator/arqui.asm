@@ -23,6 +23,7 @@ address: equ 8
 
 MEM_offset: equ 268500992
 pc_base_address: equ 4194304
+heap_base_address: equ 268697600
 ; Leer de consola es a través de STDIN
 STDIN_FILENO: equ 0
 ;Necesario para limpiar consona
@@ -40,6 +41,9 @@ timespec:
     tv_sec  dq 0
     tv_nsec dq 200000000
 
+delay:
+    tv_sec_delay dq 0
+    tv_nsec_delay dq 1000000
 
 ;Este comando es para limpiar la pantalla, no es intuitivo usenlo como tal
 clear:		db 27, "[2J", 27, "[H"
@@ -120,6 +124,15 @@ msg4_length:	equ $-msg4
     syscall         ;recuperar el texto desde la consola
 %endmacro
 
+%macro getinteger 1
+    mov     rax, sys_read
+    mov     rdi, STDIN_FILENO
+    mov     rsi, input_int
+    mov     rdx, %1
+    syscall
+%endmacro
+
+
 %macro sleeptime 0
 	mov eax, sys_nanosleep
 	mov rdi, timespec
@@ -134,10 +147,11 @@ global _start
 section .bss ; Este es el segmento de datos para variables estáticas, aca se reserva un byte para lo que se lee de consola
 
 input_char: resb 1
+input_int:  resb 20
 
 section .data ;variables globales se agregan aqui
 ;Esto se inicializa antes de que el código se ejecute
-
+beep db 7 ; "BELL"
 		
 
 	board: ;Noten que esto es una dirección de memoria donde ustedes tendran que escribir
@@ -616,6 +630,20 @@ extract_from_instruction:
 
         mov rax,r10
         ret
+_open_file:
+    
+    mov rcx, 0
+    
+    open_file_loop:
+
+
+
+    inc rcx
+    cmp rcx, 24
+    jnz open_file_loop
+
+    ret
+
 ;;;;; FUNCIONES BASICAS DE MIPS;;;;;;;;;
 _sll:
     mov r8,[reg+rbx*4]
@@ -648,7 +676,7 @@ _mul:
     mov eax,[reg+rbx*4];;cargo rs
     mov r9d,[reg+rcx*4];;cargo rt
     mov r8,rdx
-    imul r9d
+    mul r9d
     
     mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
     mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
@@ -659,7 +687,7 @@ _multu:
     mov eax,[reg+rbx*4];;cargo rs
     mov r9d,[reg+rcx*4];;cargo rt
     mov r8,rdx
-    mul r9d
+    imul r9d
     
     mov dword[hi_reg],edx ;;Guardo la parte superior en el hi
     mov dword[lo_reg],eax ;;Guardo la parte inferior en lo
@@ -683,8 +711,8 @@ _or:
     mov dword[reg+rdx*4],r8d
     ret
 _xor:
-    mov r8d,dword[reg+rbx*4]
-    mov r9d,dword[reg+rcx*4]
+    mov r8d, [reg+rbx*4]
+    mov r9d, [reg+rcx*4]
     xor r8d,r9d
     mov dword[reg+rdx*4],r8d
     ret
@@ -738,8 +766,8 @@ _lw:
     cmp r8d,0xFFFF0004
     jz _lw_input
     add r8d,edx
-    sub r8d,MEM_offset
-    mov r9d,[data_buffer+r8d]
+    sub r8d,MEM_offset ;indice
+    mov r9d,[data_buffer+r8d] ;MEM[indice]
     mov dword[reg+rcx*4],r9d
     ret
     _lw_input:
@@ -812,6 +840,217 @@ _sh:
     mov r9w,[reg+rcx*4]
     mov word[data_buffer+r8d],r9w
     ret
+    ret
+_mfhi:;R
+    mov dword[reg+rdx*4],hi_reg
+    ret
+_mflo:;R
+    mov dword[reg+rdx*4],lo_reg
+    ret
+_div_e:;R
+    mov eax,[reg+rbx*4]
+    mov r9d,[reg+rcx*4]
+    idiv r9d
+    
+    mov dword[hi_reg],edx 
+    mov dword[lo_reg],eax 
+    ret
+_divu_e:;R
+    mov rax,[reg+rbx*4]
+    ;and rax, 0xFFFFFFFF
+    mov r9,[reg+rcx*4]
+    ;and r9, 0xFFFFFFFF
+    div r9
+    
+    mov dword[hi_reg],edx 
+    mov dword[lo_reg],eax 
+    ret
+_sub:;R
+    mov r8d,[reg+rbx*4]
+    sub r8d,[reg+rcx*4]
+    mov dword[reg+rdx*4],r8d
+    ret
+_subu:;R
+    mov r8,[reg+rbx*4]
+    and r8, 0xFFFFFFF
+    mov r9,[reg+rcx*4]
+    and r9, 0xFFFFFFF
+    sub r8,r9
+    mov dword[reg+rdx*4],r8d
+    ret
+_slt:;R
+    mov r8d, [reg + rbx*4];extract rs,rbx
+    mov r9d, [reg + rcx*4];extract rt,rdx
+    cmp r8d, r9d
+    jl slt_if
+    mov dword[reg + rdx*4], 0 ;extract rd,rdx
+    ret
+    slt_if:
+    mov dword[reg + rdx*4], 1
+    ret
+_sltu:;R
+    mov r8d, [reg + rbx*4];extract rs,rbx
+    and r8d, 0xFFFFFF
+    mov r9d, [reg + rcx*4];extract rt,rdx
+    and r9d, 0xFFFFFF
+    cmp r8d, r9d
+    jl sltu_if
+    mov dword[reg + rdx*4], 0 ;extract rd,rdx
+    ret
+    sltu_if:
+    mov dword[reg + rdx*4], 1
+    ret
+_bne:;R
+    mov r8d, [reg + rbx*4]  ;extract rs,rbx
+    mov r9d, [reg + rdx*4]  ;extract rt,rcx
+    cmp r8d, r9d
+    jne bne_if
+    ret
+    bne_if:
+    add rdx, pc_address     ;extract SigImm,rdx
+    mov dword[pc_address], edx
+    ret
+_beq:;R
+    mov r8d, [reg + rbx*4]  ;extract rs,rbx
+    mov r9d, [reg + rdx*4]  ;extract rt,rcx
+    cmp r8d, r9d
+    je beq_if
+    ret
+    beq_if:
+    add rdx, pc_address     ;extract SigImm,rdx
+    mov dword[pc_address], edx
+    ret
+_blez:;R
+    mov r8d, [reg + rbx*4]  ;extract rs,rbx
+    cmp r8d, 0
+    jle blez_if
+    ret
+    blez_if:
+    add rdx, pc_address     ;extract SigImm,rdx
+    mov dword[pc_address], edx
+    ret
+
+_addiu:;R
+    mov r8, [reg+rbx*4]
+    mov r9, [reg+rdx*4]
+    and r8, r9
+    mov dword[reg+rcx*4],r8d
+    ret
+_slti:;R
+    mov r8d, [reg + rbx*4];extract rs,rbx
+    mov r9d, [reg + rdx*4];extract SigImm,rdx
+    cmp r8d, r9d
+    jl slti_if
+    mov dword[reg + rcx*4], 0 ;extract rt,rcx
+    ret
+    slti_if:
+    mov dword[reg + rcx*4], 1
+    ret
+_sltiu:;R
+    mov r8d, [reg + rbx*4];extract rs,rbx
+    and r8d, 0xFFFFFF
+    mov r9d, [reg + rdx*4];extract SigImm,rdx
+    and r8d, 0xFFFFFF
+    cmp r8d, r9d
+    jl sltiu_if
+    mov dword[reg + rcx*4], 0 ;extract rt,rcx
+    ret
+    sltiu_if:
+    mov dword[reg + rcx*4], 1
+    ret
+_andi:;R
+    mov r8, [reg+rbx*4]
+    mov r9, [reg+rdx*4]
+    and r9, 0xFFFFFFF
+    and r8, r9
+    mov dword[reg+rcx*4],r8d
+    ret
+_ori:;R
+    mov r8, [reg+rbx*4]
+    mov r9, [reg+rdx*4]
+    and r9, 0xFFFFFFF
+    or r8, r9
+    mov dword[reg+rcx*4],r8d
+    ret
+_xori:;R
+    mov r8,[reg+rbx*4]
+    mov r9,[reg+rdx*4]
+    and r9, 0xFFFFFFF
+    xor r8,r9
+    mov dword[reg+rcx*4],r8d
+    ret
+_syscall:
+    mov r8, [reg+2*4]
+    caso r8,1,print_integer
+    caso r8,5,read_integer
+    caso r8,9,allocate_heap_memory
+    caso r8,10,exit
+    caso r8,11,print_caracter
+    caso r8,13,open_file
+    caso r8,17,terminate_with_value
+    caso r8,31,MIDI
+    caso r8,32,sleep
+    caso r8,40,Init_random_generator
+    caso r8,41,random_int
+    caso r8,42,random_int_range
+    ret
+    MIDI:
+        mov eax, 1
+	    mov edi, 1
+	    mov rsi, beep
+	    mov edx,1
+	    syscall
+        ret
+    print_integer:
+        print [reg + 4*4], 256
+        ret
+    
+    read_integer:
+        getinteger 20
+        ret
+    allocate_heap_memory:
+        mov r11,[reg + 4*4]
+        mov r12,0
+        mov rcx,0
+        mov r12, heap_base_address
+        sub r12, MEM_offset
+        allocate_heap_memory_loop:
+        add r12, rcx
+        mov dword[data_buffer + r12], 0
+        inc rcx
+        cmp rcx, r11
+        jnz allocate_heap_memory_loop
+        add r11, heap_base_address
+        mov rax, heap_base_address
+        sub rax, r11
+        ret
+    print_caracter:
+        print [reg + 4*4], 20
+        ret
+    open_file:;no se utiliza en pong
+        mov r8, [reg + 4*4]
+        mov r9, [reg + 5*4]
+        mov r10, [reg + 6*4]
+
+        ret
+    terminate_with_value:;no se usa
+        mov rax, [reg+4*4]
+        call exit
+        ret
+    sleep:
+        mov eax, sys_nanosleep
+	    mov rdi, delay
+        imul rdi, [reg + 4*4]
+	    xor esi, esi
+        syscall	
+        ret
+    Init_random_generator:;no se utiliza en el pong
+        ret
+    random_int:;no se usa 
+        ret
+    random_int_range: ;no se usa en pong pero si en wow
+        ret
+
 ;;;EMULA EL CPU
 _CPU:
     ;;; Extrae el opcode
@@ -893,10 +1132,15 @@ _CPU:
         call _srl
         jmp CPU_END
     CPU_Syscall:;R
+        call _syscall
         jmp CPU_END
     CPU_mfhi:;R
+        extract rd, rdx
+        call _mfhi
         jmp CPU_END
     CPU_mflo:;R
+        extract rd, rdx
+        call _mflo
         jmp CPU_END
     CPU_mult:;Y
         extract rs,rbx
@@ -909,8 +1153,14 @@ _CPU:
         call _multu
         jmp CPU_END
     CPU_div_e:;R
+        extract rs,rbx
+        extract rt,rcx
+        call _div_e
         jmp CPU_END
     CPU_divu_e:;R
+        extract rs,rbx
+        extract rt,rcx
+        call _divu_e
         jmp CPU_END
     CPU_add:;Y
         extract rs,rbx
@@ -925,8 +1175,14 @@ _CPU:
         call _addu
         jmp CPU_END
     CPU_sub:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
         jmp CPU_END
     CPU_subu:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
         jmp CPU_END
     CPU_and:;Y
         extract rs,rbx
@@ -953,6 +1209,9 @@ _CPU:
         call _nor
         jmp CPU_END
     CPU_slt:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
         jmp CPU_END
     CPU_sltu:;R
         jmp CPU_END
@@ -966,10 +1225,19 @@ _CPU:
         call _jal
         jmp CPU_END
     CPU_beq:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
         jmp CPU_END
     CPU_bne:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
         jmp CPU_END
     CPU_blez:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
         jmp CPU_END
     CPU_addi:;R
         extract rs,rbx
@@ -978,16 +1246,35 @@ _CPU:
         call _addi
         jmp CPU_END
     CPU_addiu:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract ZeroImm,rdx
         jmp CPU_END
     CPU_slti:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract SigImm,rdx
         jmp CPU_END
     CPU_sltiu:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract ZeroImm,rdx
         jmp CPU_END
     CPU_andi:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract ZeroImm,rdx
         jmp CPU_END
     CPU_ori:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract ZeroImm,rdx
         jmp CPU_END
     CPU_xori:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract ZeroImm,rdx
+        call _xori
         jmp CPU_END
     CPU_lui:;R
         extract rt,rbx
