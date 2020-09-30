@@ -1128,11 +1128,13 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
+        call _sub
         jmp CPU_END
     CPU_subu:;R
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
+        call _sub
         jmp CPU_END
     CPU_and:;Y
         extract rs,rbx
@@ -1162,8 +1164,13 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
+        call _slt
         jmp CPU_END
     CPU_sltu:;R
+        extract rs,rbx
+        extract rt,rcx
+        extract rd,rdx
+        call _slt
         jmp CPU_END
 
     CPU_jump:;Y
@@ -1178,16 +1185,19 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract SigImm,rdx
+        call _beq
         jmp CPU_END
     CPU_bne:;R
         extract rs,rbx
         extract rt,rcx
         extract SigImm,rdx
+        call _bne
         jmp CPU_END
     CPU_blez:;R
         extract rs,rbx
         extract rt,rcx
         extract SigImm,rdx
+        call _blez
         jmp CPU_END
     CPU_addi:;R
         extract rs,rbx
@@ -1199,26 +1209,31 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract ZeroImm,rdx
+        call _addiu
         jmp CPU_END
     CPU_slti:;R
         extract rs,rbx
         extract rt,rcx
         extract SigImm,rdx
+        call _slti
         jmp CPU_END
     CPU_sltiu:;R
         extract rs,rbx
         extract rt,rcx
         extract ZeroImm,rdx
+        call _sltiu
         jmp CPU_END
     CPU_andi:;R
         extract rs,rbx
         extract rt,rcx
         extract ZeroImm,rdx
+        call _andi
         jmp CPU_END
     CPU_ori:;R
         extract rs,rbx
         extract rt,rcx
         extract ZeroImm,rdx
+        call _ori
         jmp CPU_END
     CPU_xori:;R
         extract rs,rbx
