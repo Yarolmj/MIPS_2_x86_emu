@@ -3,6 +3,11 @@ default rel
 
 
 ; Acá básicamente le estoy asignando nombres a los syscalls
+bits 64
+default rel
+
+
+; Acá básicamente le estoy asignando nombres a los syscalls
 sys_read: equ 0	
 sys_write:	equ 1
 sys_nanosleep:	equ 35
@@ -22,6 +27,9 @@ ZeroImm: equ 7
 address: equ 8
 
 MEM_offset: equ 268500992
+
+stack_base: equ 2143479548
+stack_top: equ 2151479548
 pc_base_address: equ 4194304
 heap_base_address: equ 268697600
 ; Leer de consola es a través de STDIN
@@ -33,7 +41,7 @@ O_NONBLOCK: equ 0x0004
 
 ;La pantalla se define como texto, pueden modificarle el tamaño
 row_cells:	equ 32	; 
-column_cells: 	equ 80 ; 
+column_cells: 	equ 64 ; 
 array_length:	equ row_cells * column_cells + row_cells ; Esto es un mapao lineal de la consola, la necesitan para escribir caracteres
 
 ; Esto es para hacer un sleep
@@ -176,6 +184,9 @@ beep db 7 ; "BELL"
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
 
+    stack_buffer: TIMES 8000000 db 0  ;8 MBytes reservados para el stack, $sp + 4MB y $sp - 4MB
+
+    display_buffer: TIMES 1048576 db 0 ;;Espacio sufienciente para dibujar 512x512 pixeles con 1 pixel = 4 Bytes
     filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.text",0
     filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.data",0
 
@@ -183,7 +194,14 @@ beep db 7 ; "BELL"
     hi_reg: dd 0
     lo_reg: dd 0
 
-    pc_address: dd 0 ;;;Direccion pc actual 
+    pc_address: dd 0 ;;;Direccion pc actual
+
+    display_base_address: dd 268468224 ;;Direccion simulada donde empieza la memoria de dibujo del display
+    display_top_address: dd 268468224 + 64*64*4
+    ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
+    res_x: dd 0
+    res_y: dd 0
+
     ;;;;;;;;;;;;;;;;;;;;;;;;;fin .data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 section .text
@@ -484,7 +502,7 @@ _fix_data:
 ;;;rdi = elemento a extraer 0 = opcode, 1 = rs, 2 = rt, 3 = rd, 4 = shamt, 5 = funct, 6 = imm con signo, 7 = imm sin signo,8 = address
 extract_from_instruction:
     ;Opcode
-    mov r8,[pc_address]
+    mov r8d,[pc_address]
     
     ;;;;;;;;Simil de un switch case
     cmp rdi,0
@@ -656,6 +674,11 @@ _srl:
     shr r8,cl
     mov dword[reg+rdx*4],r8d
     ret
+_jr:
+    mov r8d,[reg+rbx*4]
+    sub r8d,pc_base_address
+    mov dword[pc_address],r8d
+    ret
 _addi:
     mov r8,[reg+rbx*4]
     ;and r8,0xFFFFFFFF
@@ -761,117 +784,96 @@ _lbu:
 _lw:
     mov r8,0
     mov r8d,[reg+rbx*4]
+    ;;;;;;;;COMPROBACIONES PARA SABER DE QUE SEGMENTO DEL EMULADOR SE VA A CARGAR INFO
+    ;;;Comprobaciones para entrada de consola
     cmp r8d,0xFFFF0000
-    jz _lw_input
+    jz .lw_input
     cmp r8d,0xFFFF0004
-    jz _lw_input
+    jz .lw_input
+    ;;Comprobaciones para el stack
+    cmp r8d,stack_base
+    jg .lw_stack
+    .lw_no_stack:
+    ;;Comprobaciones para el display
+    cmp r8d,[display_base_address]
+    jg .lw_display
+    .lw_no_display:
+    ;;Debe ser en el .data
     add r8d,edx
     sub r8d,MEM_offset ;indice
     mov r9d,[data_buffer+r8d] ;MEM[indice]
     mov dword[reg+rcx*4],r9d
     ret
-    _lw_input:
+    .lw_input:
         mov r9b,[input_char]
         and r9b,0xFF
+        mov dword[reg+rcx*4],r9d
+        ret
+    .lw_stack:
+        cmp r8d,stack_top
+        jnl .lw_no_stack
+        ;;; Si está en el rango del stack
+        add r8d,edx
+        sub r8d,stack_base ;indice
+        mov r9d,[stack_buffer+r8d] ;MEM[indice]
+        mov dword[reg+rcx*4],r9d
+        ret
+    .lw_display:
+        cmp r8d,[display_top_address]
+        jnl .lw_no_display
+        add r8d,edx
+        sub r8d,display_base_address ;indice
+        mov r9d,[display_buffer+r8d] ;MEM[indice]
         mov dword[reg+rcx*4],r9d
         ret
 
 _sw:
     mov r8,0
     mov r8d,[reg+rbx*4]
+    ;;;;;;;;COMPROBACIONES PARA SABER EN QUE SEGMENTO DEL EMULADOR SE VA A GUARDAR INFO
+    ;;;Comprobaciones para entrada de consola
     cmp r8d,0xFFFF0000
-    jz _sw_input
+    jz .sw_input
     cmp r8d,0xFFFF0004
-    jz _sw_input
-    add r8d,edx
-    sub r8d,MEM_offset
-    mov r9d,[reg+rcx*4]
-    mov dword[data_buffer + r8d],r9d
-    ret
-    _sw_input:
-        mov r9d,[reg+rcx*4]
-        mov byte[input_char],r9b
-        ret
-_lhu:
-    mov r8d,[reg+rbx*4] ;Reg[rs]
-    add r8d,edx ;Reg[rs]+SignImm
-    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
-    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
-    and r8d,0xFFFF ; r8 and 0000 0000 1111 1111
-    mov dword[reg+rcx*4],r8d
-    ret
-
-_lh:
-    mov r8d,[reg+rbx*4] ;Reg[rs]
-    add r8d,edx ;Reg[rs]+SignImm
-    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
-    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
-    movsx r9d,r8w
-    mov dword[reg+rcx*4],r9d
-    ret
-_sb:
-    mov r8d,[reg+rbx*4];Reg[rs]
-    add r8d,edx ; Reg[rs] + SignImm
-    sub r8d,MEM_offset
-    mov r9b,[reg+rcx*4]
-    mov byte[data_buffer+r8d],r9b
-    ret
-_sh:
-    mov r8d,[reg+rbx*4];Reg[rs]
-    add r8d,edx ; Reg[rs] + SignImm
-    sub r8d,MEM_offset
-    mov r9w,[reg+rcx*4]
-    mov word[data_buffer+r8d],r9w
-    ret
-    ret
-
-_sw:
-    mov r8,0
+    jz .sw_input
+    ;;Comprobaciones para el stack
+    cmp r8d,stack_base
+    jg .sw_stack
+    .sw_no_stack:
+    ;;Comprobaciones para el display
+    cmp r8d,[display_base_address]
+    jg .sw_display
+    .sw_no_display:
+    ;;Debe ser en el .data
     mov r8d,[reg+rbx*4]
-    cmp r8d,0xFFFF0000
-    jz _sw_input
-    cmp r8d,0xFFFF0004
-    jz _sw_input
     add r8d,edx
     sub r8d,MEM_offset
     mov r9d,[reg+rcx*4]
     mov dword[data_buffer + r8d],r9d
     ret
-    _sw_input:
+    .sw_input:
         mov r9d,[reg+rcx*4]
         mov byte[input_char],r9b
         ret
-_lhu:
-    mov r8d,[reg+rbx*4] ;Reg[rs]
-    add r8d,edx ;Reg[rs]+SignImm
-    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
-    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
-    and r8d,0xFFFF ; r8 and 0000 0000 1111 1111
-    mov dword[reg+rcx*4],r8d
-    ret
+    .sw_stack:
+        cmp r8d,stack_top
+        jnl .sw_no_stack
+        ;;; Si está en el rango del stack
+        add r8d,edx
+        sub r8d,stack_base
+        mov r9d,[reg+rcx*4]
+        mov dword[stack_buffer+r8d],r9d
+        ret
+    .sw_display:
+        cmp r8d,[display_top_address]
+        jnl .sw_no_display
+        add r8d,edx
+        sub r8d,display_base_address
+        mov r9d,[reg+rcx*4]
+        mov dword[display_buffer+r8d],r9d
+        ret
+        
 
-_lh:
-    mov r8d,[reg+rbx*4] ;Reg[rs]
-    add r8d,edx ;Reg[rs]+SignImm
-    sub r8d,MEM_offset ;Reg[rs]+SignImm-MEM_offset
-    mov r8d,[data_buffer + r8d] ; r8d = MEM[r8d]
-    movsx r9d,r8w
-    mov dword[reg+rcx*4],r9d
-    ret
-_sb:
-    mov r8d,[reg+rbx*4];Reg[rs]
-    add r8d,edx ; Reg[rs] + SignImm
-    sub r8d,MEM_offset
-    mov r9b,[reg+rcx*4]
-    mov byte[data_buffer+r8d],r9b
-    ret
-_sh:
-    mov r8d,[reg+rbx*4];Reg[rs]
-    add r8d,edx ; Reg[rs] + SignImm
-    sub r8d,MEM_offset
-    mov r9w,[reg+rcx*4]
-    mov word[data_buffer+r8d],r9w
-    ret
 _lui:
     shl rcx,16
     mov dword[reg+rbx*4],ecx
@@ -884,10 +886,14 @@ _jump:
     ret
 
 _jal:
+    mov r8d,[pc_address]
+    add r8d,pc_base_address
+    add r8d,4
+    mov dword[reg+31*4],r8d
+
     sub ebx,pc_base_address
     sub ebx,4
     mov dword[pc_address],ebx
-    mov dword[reg+31*4],ebx ;;Guarda en $ra
     ret  
 _lhu:
     mov r8d,[reg+rbx*4] ;Reg[rs]
@@ -951,11 +957,11 @@ _sub:;R
     mov dword[reg+rdx*4],r8d
     ret
 _subu:;R
-    mov r8,[reg+rbx*4]
-    and r8, 0xFFFFFFF
-    mov r9,[reg+rcx*4]
-    and r9, 0xFFFFFFF
-    sub r8,r9
+    mov r8d,[reg+rbx*4]
+    ;and r8,0xFFFFFFFF
+    mov r9d,[reg+rcx*4]
+    ;and r9, 0xFFFFFFFF
+    sub r8d,r9d
     mov dword[reg+rdx*4],r8d
     ret
 _slt:;R
@@ -970,9 +976,9 @@ _slt:;R
     ret
 _sltu:;R
     mov r8d, [reg + rbx*4];extract rs,rbx
-    and r8d, 0xFFFFFF
-    mov r9d, [reg + rcx*4];extract rt,rdx
-    and r9d, 0xFFFFFF
+    ;and r8d, 0xFFFFFFFF
+    mov r9d, [reg + rcx*4];extract rt,rcx
+    ;and r9d, 0xFFFFFFFF
     cmp r8d, r9d
     jl sltu_if
     mov dword[reg + rdx*4], 0 ;extract rd,rdx
@@ -982,23 +988,27 @@ _sltu:;R
     ret
 _bne:;R
     mov r8d, [reg + rbx*4]  ;extract rs,rbx
-    mov r9d, [reg + rdx*4]  ;extract rt,rcx
+    mov r9d, [reg + rcx*4]  ;extract rt,rcx
     cmp r8d, r9d
     jne bne_if
     ret
     bne_if:
-    add rdx, pc_address     ;extract SigImm,rdx
-    mov dword[pc_address], edx
+    mov r9d,edx
+    shl r9d,2
+    add r9d, [pc_address]     ;extract SigImm,rdx
+    mov dword[pc_address], r9d
     ret
 _beq:;R
     mov r8d, [reg + rbx*4]  ;extract rs,rbx
-    mov r9d, [reg + rdx*4]  ;extract rt,rcx
+    mov r9d, [reg + rcx*4]  ;extract rt,rcx
     cmp r8d, r9d
     je beq_if
     ret
     beq_if:
-    add rdx, pc_address     ;extract SigImm,rdx
-    mov dword[pc_address], edx
+    mov r9d,edx
+    shl r9d,2
+    add r9d,[pc_address]     ;extract SigImm,rdx
+    mov dword[pc_address], r9d
     ret
 _blez:;R
     mov r8d, [reg + rbx*4]  ;extract rs,rbx
@@ -1006,8 +1016,10 @@ _blez:;R
     jle blez_if
     ret
     blez_if:
-    add rdx, pc_address     ;extract SigImm,rdx
-    mov dword[pc_address], edx
+    mov r9d,edx
+    shl r9d,2
+    add r9d, [pc_address]     ;extract SigImm,rdx
+    mov dword[pc_address], r9d
     ret
 
 _addiu:;R
@@ -1018,7 +1030,7 @@ _addiu:;R
     ret
 _slti:;R
     mov r8d, [reg + rbx*4];extract rs,rbx
-    mov r9d, [reg + rdx*4];extract SigImm,rdx
+    mov r9d, edx;extract SigImm,rdx
     cmp r8d, r9d
     jl slti_if
     mov dword[reg + rcx*4], 0 ;extract rt,rcx
@@ -1028,9 +1040,9 @@ _slti:;R
     ret
 _sltiu:;R
     mov r8d, [reg + rbx*4];extract rs,rbx
-    and r8d, 0xFFFFFF
-    mov r9d, [reg + rdx*4];extract SigImm,rdx
-    and r8d, 0xFFFFFF
+    ;and r8d, 0xFFFFFF
+    mov r9d, edx;extract SigImm,rdx
+    ;and r8d, 0xFFFFFF
     cmp r8d, r9d
     jl sltiu_if
     mov dword[reg + rcx*4], 0 ;extract rt,rcx
@@ -1039,24 +1051,25 @@ _sltiu:;R
     mov dword[reg + rcx*4], 1
     ret
 _andi:;R
-    mov r8, [reg+rbx*4]
-    mov r9, [reg+rdx*4]
-    and r9, 0xFFFFFFF
-    and r8, r9
+    mov r8d, [reg+rbx*4]
+    mov r9d, edx
+    ;and r9, 0xFFFFFFF
+    and r8d, r9d
     mov dword[reg+rcx*4],r8d
     ret
 _ori:;R
-    mov r8, [reg+rbx*4]
-    mov r9, [reg+rdx*4]
-    and r9, 0xFFFFFFF
-    or r8, r9
+    mov r8d,[reg+rbx*4]
+    mov r9d,edx 
+    ;mov r9d, [reg+rdx*4]
+    ;and r9d, 0xFFFFFFF
+    or r8d, r9d
     mov dword[reg+rcx*4],r8d
     ret
 _xori:;R
-    mov r8,[reg+rbx*4]
-    mov r9,[reg+rdx*4]
-    and r9, 0xFFFFFFF
-    xor r8,r9
+    mov r8d,[reg+rbx*4]
+    mov r9d,edx
+    and r9d, 0xFFFF
+    xor r8d,r9d
     mov dword[reg+rcx*4],r8d
     ret
 _syscall:
@@ -1178,6 +1191,7 @@ _CPU:
         
         caso r9,0,CPU_sll
         caso r9,2,CPU_srl
+        caso r9,8,CPU_jr
         caso r9,12,CPU_Syscall
         caso r9,13,exit
         caso r9,16,CPU_mfhi
@@ -1210,6 +1224,10 @@ _CPU:
         extract rd,rdx
         extract shamt,rcx
         call _srl
+        jmp CPU_END
+    CPU_jr:
+        extract rs,rbx
+        call _jr
         jmp CPU_END
     CPU_Syscall:;R
         call _syscall
@@ -1264,7 +1282,7 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
-        call _sub
+        call _subu
         jmp CPU_END
     CPU_and:;Y
         extract rs,rbx
@@ -1300,7 +1318,7 @@ _CPU:
         extract rs,rbx
         extract rt,rcx
         extract rd,rdx
-        call _slt
+        call _sltu
         jmp CPU_END
 
     CPU_jump:;Y
@@ -1435,27 +1453,56 @@ _CPU:
         mov r9,[pc_address]
         add r9,4
         mov dword [pc_address],r9d
-        ;mov byte [instruction_buffer + rcx],r8b ;Guarda el dato en memoria antes del siguiente salto
         ret
 
+_draw_screen:
+    print clear, clear_length ; Limpia la pantalla
+    mov r8, board + 1 + 1 * (column_cells+2)
+    mov byte [r8], 35
+    print board, board_size
+    ret 
+_init_registers:
+    mov dword[reg+28*4],268468224 ;;$gp
+    mov dword[reg+29*4],2147479548 ;;$sp
+    ret
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
-    call canonical_off
     call _read_text
     call _read_data
     call _fix_data
+	call canonical_off
+    call _init_registers
+	;print clear, clear_length	; limpia la pantalla
+	;call start_screen	; Esto puesto que consola no bloquea casi no se ve
+	;mov r8, board + 40 + 29 * (column_cells+2) ; Modifiquen esto y verán el efecto que genera sobre la pantalla
+;Estudien esto, en R8 lo que queda definido es una dirección muy específica de memoria
+	
 	
 	.main_loop:
         call _CPU
-        .read_more:	
-        getchar
-        jmp .done
-        .done:	
-            unsetnonblocking		
-            sleeptime	
-            print clear, clear_length
-            jmp .main_loop
+        call _draw_screen
+		;mov byte [r8], 35 ;ojo acá se define qué caracter se va a pintar
+;También estudien esto, en esa dirección específica se está escribiendo un valor
+; de 35, que corresponde a  # y es lo que se imprime en pantalla
+; Vea los direccionamiento de 86, vea lo que ocurre si descomentan las siguientes lineas
+        ;mov byte [r8+1], 35 
+        ;mov byte [r8-1], 35 
+        ; waooo vieron, será que se pueden detectar colisiones comparando 
+; valores contenidos en memoria????
+		;print board, board_size				
+		; aca viene la logica de reconocer tecla y actuar
+	.read_more:	
+		getchar
+		
+		.done:	
+			;unsetnonblocking		
+			sleeptime	
+			print clear, clear_length
+            ;push r8
+            ;call _CPU
+            ;pop r8
+    		jmp .main_loop
 
 
 start_screen:
@@ -1471,4 +1518,5 @@ exit:
 	mov    rax, 60
     mov    rdi, 0
     syscall
+
 
