@@ -187,8 +187,8 @@ beep db 7 ; "BELL"
     stack_buffer: TIMES 8000000 db 0  ;8 MBytes reservados para el stack, $sp + 4MB y $sp - 4MB
 
     display_buffer: TIMES 1048576 db 0 ;;Espacio sufienciente para dibujar 512x512 pixeles con 1 pixel = 4 Bytes
-    filename_text: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.text",0
-    filename_data: db "/home/yarol/MIPS x86/MIPS_2_x86_emu/MIPS TEST/hex2.data",0
+    filename_text: db "hex2.text",0
+    filename_data: db "hex2.data",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
     hi_reg: dd 0
