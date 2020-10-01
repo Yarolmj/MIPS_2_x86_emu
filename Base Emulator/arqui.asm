@@ -38,10 +38,12 @@ STDIN_FILENO: equ 0
 F_SETFL:	equ 0x0004
 O_NONBLOCK: equ 0x0004
 
+RES_X: equ 64
+RES_Y: equ 32
 
 ;La pantalla se define como texto, pueden modificarle el tamaño
-row_cells:	equ 32	; 
-column_cells: 	equ 64 ; 
+row_cells:	equ RES_Y	; 
+column_cells: 	equ RES_X+2 ; 
 array_length:	equ row_cells * column_cells + row_cells ; Esto es un mapao lineal de la consola, la necesitan para escribir caracteres
 
 ; Esto es para hacer un sleep
@@ -110,7 +112,7 @@ msg4_length:	equ $-msg4
 ; Una linea con X a los bordes, tal como la que se pinta
 %macro hollow_line 0
     db "X"
-    times column_cells-2 db " "
+    times column_cells-2 db ' '
     db "X", 0x0a, 0xD
 %endmacro
 
@@ -164,7 +166,7 @@ beep db 7 ; "BELL"
 
 	board: ;Noten que esto es una dirección de memoria donde ustedes tendran que escribir
 		full_line
-        %rep 30
+        %rep RES_Y
         hollow_line
         %endrep
         full_line
@@ -197,10 +199,10 @@ beep db 7 ; "BELL"
     pc_address: dd 0 ;;;Direccion pc actual
 
     display_base_address: dd 268468224 ;;Direccion simulada donde empieza la memoria de dibujo del display
-    display_top_address: dd 268468224 + 64*64*4
+    display_top_address: dd 268468224 + RES_X*RES_Y*4
     ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
-    res_x: dd 0
-    res_y: dd 0
+    res_x: dd RES_X
+    res_y: dd RES_Y
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;fin .data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -822,7 +824,7 @@ _lw:
         cmp r8d,[display_top_address]
         jnl .lw_no_display
         add r8d,edx
-        sub r8d,display_base_address ;indice
+        sub r8d,[display_base_address] ;indice
         mov r9d,[display_buffer+r8d] ;MEM[indice]
         mov dword[reg+rcx*4],r9d
         ret
@@ -830,6 +832,7 @@ _lw:
 _sw:
     mov r8,0
     mov r8d,[reg+rbx*4]
+    add r8d,edx
     ;;;;;;;;COMPROBACIONES PARA SABER EN QUE SEGMENTO DEL EMULADOR SE VA A GUARDAR INFO
     ;;;Comprobaciones para entrada de consola
     cmp r8d,0xFFFF0000
@@ -838,15 +841,16 @@ _sw:
     jz .sw_input
     ;;Comprobaciones para el stack
     cmp r8d,stack_base
-    jg .sw_stack
+    jge .sw_stack
     .sw_no_stack:
     ;;Comprobaciones para el display
-    cmp r8d,[display_base_address]
-    jg .sw_display
+    mov r9d,[display_base_address]
+    
+    cmp r8d,r9d
+    jge .sw_display
     .sw_no_display:
     ;;Debe ser en el .data
     mov r8d,[reg+rbx*4]
-    add r8d,edx
     sub r8d,MEM_offset
     mov r9d,[reg+rcx*4]
     mov dword[data_buffer + r8d],r9d
@@ -859,7 +863,6 @@ _sw:
         cmp r8d,stack_top
         jnl .sw_no_stack
         ;;; Si está en el rango del stack
-        add r8d,edx
         sub r8d,stack_base
         mov r9d,[reg+rcx*4]
         mov dword[stack_buffer+r8d],r9d
@@ -867,10 +870,11 @@ _sw:
     .sw_display:
         cmp r8d,[display_top_address]
         jnl .sw_no_display
-        add r8d,edx
-        sub r8d,display_base_address
+        sub r8d,[display_base_address]
         mov r9d,[reg+rcx*4]
+        pausa:
         mov dword[display_buffer+r8d],r9d
+        ;call _draw_screen
         ret
         
 
@@ -1023,9 +1027,9 @@ _blez:;R
     ret
 
 _addiu:;R
-    mov r8, [reg+rbx*4]
-    mov r9, [reg+rdx*4]
-    and r8, r9
+    mov r8d,[reg+rbx*4]
+    mov r9d, edx
+    add r8d, r9d
     mov dword[reg+rcx*4],r8d
     ret
 _slti:;R
@@ -1455,12 +1459,66 @@ _CPU:
         mov dword [pc_address],r9d
         ret
 
+; rax = x
+; rbx = y
+; return eax = address
+_xy_boar_to_address:
+    mov r8,board
+    add r8,rax
+    add r8,1
+    mov r9,0
+    
+    ;and r9d,0xFFFFFFFF
+    mov r9,[res_x]
+    and r9,0xFFFFFFFF
+    add r9,4
+    mov rax,rbx
+    add eax,1
+    mul r9d ; eax = (pos_y+1)*(res_x+2)
+    add eax,r8d
+    ret
 _draw_screen:
     print clear, clear_length ; Limpia la pantalla
-    mov r8, board + 1 + 1 * (column_cells+2)
-    mov byte [r8], 35
-    print board, board_size
-    ret 
+    mov rcx,0 ; indice en display_buffer
+    mov r8,0; y pos
+    .yloop:
+        mov r9,0 ; x pos
+        .xloop:
+            push r8
+            push r9
+            mov rax,r9
+            mov rbx,r8
+            call _xy_boar_to_address
+            
+            pop r9
+            pop r8
+            .p:
+            mov r10d,[display_buffer+rcx*4]
+            cmp r10d,0
+            je .empty
+            jne .full
+            .empty:
+                mov byte[eax],'0'
+                jmp .next_x
+            .full:
+                mov byte[eax],'1'
+                jmp .next_x
+            .next_x:
+                inc r9d
+                cmp r9d,[res_x]
+                je .next_y
+                inc rcx
+                jmp .xloop
+
+        .next_y:
+            inc r8d
+            cmp r8d,[res_y]
+            je .draw_screen_end
+            jmp .yloop
+
+    .draw_screen_end:
+        print board, board_size
+        ret 
 _init_registers:
     mov dword[reg+28*4],268468224 ;;$gp
     mov dword[reg+29*4],2147479548 ;;$sp
@@ -1497,8 +1555,7 @@ _start:
 		
 		.done:	
 			;unsetnonblocking		
-			sleeptime	
-			print clear, clear_length
+			sleeptime
             ;push r8
             ;call _CPU
             ;pop r8
