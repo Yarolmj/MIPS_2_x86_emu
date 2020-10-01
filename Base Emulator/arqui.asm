@@ -154,6 +154,8 @@ global _start
 
 section .bss ; Este es el segmento de datos para variables estáticas, aca se reserva un byte para lo que se lee de consola
 
+filename_text: resb 20 ;Reserva para la direccion .text
+filename_data: resb 20 ;Reserva para la direccion .data
 input_char: resb 1
 input_int:  resb 20
 
@@ -187,8 +189,9 @@ beep db 7 ; "BELL"
     stack_buffer: TIMES 8000000 db 0  ;8 MBytes reservados para el stack, $sp + 4MB y $sp - 4MB
 
     display_buffer: TIMES 1048576 db 0 ;;Espacio sufienciente para dibujar 512x512 pixeles con 1 pixel = 4 Bytes
-    filename_text: db "hex2.text",0
-    filename_data: db "hex2.data",0
+    
+    ;filename_text: db "hex2.text",0
+    ;filename_data: db "hex2.data",0
 
     reg: TIMES 32 dd 0 ;;;EMULACION EN MEMORIA DE LOS 32 REGISTROS DE MIPS
     hi_reg: dd 0
@@ -297,7 +300,7 @@ write_stdin_termios:
 _read_text:
     ;file open
     mov rax,2
-    mov rdi,filename_text
+    mov rdi,[filename_text]
     mov rsi,0
     mov rdx,0
     syscall
@@ -393,7 +396,7 @@ _read_text:
 _read_data:
     ;file open
     mov rax,2
-    mov rdi,filename_data
+    mov rdi,[filename_data]
     mov rsi,0
     mov rdx,0
     syscall
@@ -1468,6 +1471,12 @@ _init_registers:
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
+    pop r8          
+    pop rsi         
+    pop rsi
+    mov [filename_text], rsi
+    pop rsi
+    mov [filename_data], rsi
     call _read_text
     call _read_data
     call _fix_data
