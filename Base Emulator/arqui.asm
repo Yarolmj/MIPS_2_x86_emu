@@ -1,6 +1,3 @@
-bits 64
-default rel
-
 
 ; Acá básicamente le estoy asignando nombres a los syscalls
 bits 64
@@ -49,7 +46,7 @@ array_length:	equ row_cells * column_cells + row_cells ; Esto es un mapao lineal
 ; Esto es para hacer un sleep
 timespec:
     tv_sec  dq 0
-    tv_nsec dq 20000000
+    tv_nsec dq 40000000
 
 delay:
     tv_sec_delay dq 0
@@ -105,15 +102,15 @@ msg4_length:	equ $-msg4
 
 ; Este es para escribir una linea llena de X
 %macro full_line 0
-    times column_cells db "X"
+    times column_cells db "-"
     db 0x0a, 0xD
 %endmacro
 
 ; Una linea con X a los bordes, tal como la que se pinta
 %macro hollow_line 0
-    db "X"
+    db "|"
     times column_cells-2 db ' '
-    db "X", 0x0a, 0xD
+    db "|", 0x0a, 0xD
 %endmacro
 
 
@@ -123,6 +120,18 @@ msg4_length:	equ $-msg4
 	mov rsi, %1 ;Aca va el mensaje
 	mov edx, %2 ;Aca el largo del mensaje
 	syscall
+%endmacro
+%macro printb 2
+	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
+	mov edi, 1 	; stdout, Aca le digo a donde quiero escribir
+	mov rsi, %1 ;Aca va el mensaje
+	mov edx, [%2] ;Aca el largo del mensaje
+	syscall
+%endmacro
+;1:contador 2:caracter
+%macro add_to_board 2
+    mov byte[board+%1],%2
+    inc %1
 %endmacro
 null_t: db "null",0xA
 sll_t: db "sll",0xA
@@ -229,15 +238,20 @@ section .data ;variables globales se agregan aqui
 ;Esto se inicializa antes de que el código se ejecute
 beep db 7 ; "BELL"
 		
-
-	board: ;Noten que esto es una dirección de memoria donde ustedes tendran que escribir
+    sleep_time:
+        st_sec  dq 0
+        st_nsec dq 0
+	board2: ;Noten que esto es una dirección de memoria donde ustedes tendran que escribir
 		full_line
         %rep RES_Y
         hollow_line
         %endrep
         full_line
-	board_size:   equ   $ - board
+    marca: db 0
+	board_size2:   equ   $ - board2
 
+    board:  TIMES 10000 db 0 ;;128x64 + 128*2 + 62*2 + 0's
+    board_size: dd 0
 	; Esto se requiere para que la termina no se bloquee usar tal cual
 	termios:        times 36 db 0
 	stdin:          equ 0
@@ -923,7 +937,6 @@ _sw:
     jge .sw_display
     .sw_no_display:
     ;;Debe ser en el .data
-    ;mov r8d,[reg+rbx*4]
     sub r8d,MEM_offset
     mov r9d,[reg+rcx*4]
     mov dword[data_buffer + r8d],r9d
@@ -1153,19 +1166,19 @@ _xori:;R
     mov dword[reg+rcx*4],r8d
     ret
 _syscall:
-    mov r8, [reg+2*4]
-    caso r8,1,print_integer
-    caso r8,5,read_integer
-    caso r8,9,allocate_heap_memory
-    caso r8,10,exit
-    caso r8,11,print_caracter
-    caso r8,13,open_file
-    caso r8,17,terminate_with_value
-    caso r8,31,MIDI
-    caso r8,32,sleep
-    caso r8,40,Init_random_generator
-    caso r8,41,random_int
-    caso r8,42,random_int_range
+    mov r8d, [reg+2*4]
+    caso r8d,1,print_integer
+    caso r8d,5,read_integer
+    caso r8d,9,allocate_heap_memory
+    caso r8d,10,exit
+    caso r8d,11,print_caracter
+    caso r8d,13,open_file
+    caso r8d,17,terminate_with_value
+    caso r8d,31,MIDI
+    caso r8d,32,sleep
+    caso r8d,40,Init_random_generator
+    caso r8d,41,random_int
+    caso r8d,42,random_int_range
     ret
     MIDI:
         mov eax, 1
@@ -1211,11 +1224,11 @@ _syscall:
         call exit
         ret
     sleep:
-        mov eax, sys_nanosleep
-	    mov rdi, delay
-        imul rdi, [reg + 4*4]
-	    xor esi, esi
-        syscall	
+        print clear,clear_length
+        print board,[board_size]
+        mov eax,[reg+4*4]
+        call sleepSyscall
+        
         ret
     Init_random_generator:;no se utiliza en el pong
         ret
@@ -1223,10 +1236,38 @@ _syscall:
         ret
     random_int_range: ;no se usa en pong pero si en wow
         ret
+;;eax = recibe los milisegundos ;;Funciona 
+sleepSyscall:
+    mov qword[sleep_time],0
+    mov qword[sleep_time+8],0
 
+    cmp eax,1000
+    jae .seconds
+    .mseconds:
+        ;mov eax,ebx
+        mov ebx,1000000
+        imul ebx
+        and rax,0xFFFFFFFF
+        mov qword[sleep_time+8],rax
+        jmp .doSyscall
+    .seconds:
+        mov edx,0
+        mov ecx,1000
+        div ecx
+        .alto:
+        and rax,0xFFFFFFFF
+        mov qword[sleep_time],rax 
+        mov eax,edx
+        jmp .mseconds
+    .doSyscall:
+	mov eax, sys_nanosleep
+	mov rdi, sleep_time
+	xor esi, esi		; ignore remaining time in case of call interruption
+	syscall			; sleep for tv_sec seconds + tv_nsec nanoseconds
+    ret
 ;;;EMULA EL CPU
 _CPU:
-    write_pc
+    ;write_pc
     ;;; Extrae el opcode
     mov rdi,0
     call extract_from_instruction
@@ -1577,12 +1618,10 @@ _CPU:
         mov dword [pc_address],r9d
         ret
 
-;;;rax = address
+;rax = address
 _address_to_screen:
     shr rax,2
     div dword[res_x]
-    pausa:
-    ;mov rbx,rax 
     mov rbx,rdx
     push r9
     call _xy_boar_to_address
@@ -1595,7 +1634,7 @@ _address_to_screen:
     .empty:
         mov byte[eax],' '
     .end:
-    ret
+        ret
 ; rax = y
 ; rbx = x
 ; return eax = address
@@ -1603,12 +1642,8 @@ _xy_boar_to_address:
     mov r8,board
     add r8,rbx
     add r8,1
-    
-    ;and r9d,0xFFFFFFFF
     mov r9d,[res_x]
-    ;and r9,0xFFFFFFFF
     add r9d,4
-    ;mov rax,rbx
     add eax,1
     mul r9d ; eax = (pos_y+1)*(res_x+2)
     add eax,r8d
@@ -1626,9 +1661,73 @@ _create_log:
     int 80h
     mov dword[log_descriptor],eax
     ret
+
+;;;Resolucion maxima 128x64, mas grande no cabe en 1080p con letra tamaño 6!!!
+_create_board:
+    mov r8d,0 ;Contador de bytes escritos
+    mov ecx,[res_x]
+    add ecx,2
+    .top_loop:
+        add_to_board r8d,'X'
+        dec ecx
+        cmp ecx,0
+        jne .top_loop
+    add_to_board r8d,0x0a
+    add_to_board r8d,0xD
+    mov ecx,[res_y]
+    .middle_loop:
+        push rcx 
+        add_to_board r8d,'X'
+        mov ecx,[res_x]
+        .horizontal_loop:
+            add_to_board r8d,' '
+            dec ecx
+            cmp ecx,0
+            jne .horizontal_loop
+        .next_line:
+            add_to_board r8d,'X'
+            add_to_board r8d,0x0a
+            add_to_board r8d,0xD
+            pop rcx 
+            dec ecx 
+            cmp ecx,0
+            jne .middle_loop
+    ;Ultima linea
+    mov ecx,[res_x]
+    add ecx,2
+    .bottom_loop:
+        add_to_board r8d,'X'
+        dec ecx
+        cmp ecx,0
+        jne .bottom_loop
+    add_to_board r8d,0x0a
+    add_to_board r8d,0xD
+    mov dword[board_size],r8d
+    ;Calculo de display_top_address
+    mov eax,[res_x]
+    mul dword[res_y]
+    mov r10d,eax
+    shl r10d,2
+    add r10d,[display_base_address]
+    mov dword[display_top_address],r10d
+
+    ret
+
+    
 ;;;;;;;;;;;;;;;;;;FIN DE FUNCIONES DEL EMULADOR;;;;;;;;;;;
 ;Acá comienza el ciclo pirncipal
 _start:
+    ;call _create_board
+    ;print board2,board_size2
+    ;mov r9,board_size2
+    ;mov r8d,[board_size]
+    ;alto:
+    ;mov rax,0
+    ;call _address_to_screen
+    ;mov rax,4
+    ;call _address_to_screen
+    ;print board,[board_size]
+    ;call exit
     pop r8          
     pop rsi         
     pop rsi
@@ -1641,24 +1740,18 @@ _start:
 	call canonical_off
     call _init_registers
     call _create_log
-	
+	mov dword[res_x],64
+    mov dword[res_y],32
+    call _create_board
 	
 	.main_loop:
         call _CPU
-        
+        ;print clear,clear_length
+        ;print board,[board_size]
 	.read_more:	
 		getchar
 		
 		.done:
-            add dword[frame],1
-            mov eax,[frame]
-            mov ecx,1000
-            div ecx
-            cmp edx,0
-            jne .main_loop
-			print board,board_size
-            sleeptime
-            print clear, clear_length
     		jmp .main_loop
 
 

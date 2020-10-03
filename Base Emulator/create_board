@@ -1,0 +1,76 @@
+
+    
+    
+    
+    
+    
+    mov r8d,[res_x]
+    add r8d,2
+    mov r9d,0
+    .afl_top:
+        mov byte[board+r9d],'X';'-'
+        inc r9d
+        cmp r9d,r8d
+        jne .afl_top
+    mov byte[board+r9d],0x0a
+    inc r9d
+    mov byte[board+r9d],0xD
+    inc r9d
+    mov r10d,0
+    .hollow_line_cb:
+        mov byte[board+r9d],'X';'|'
+        inc r9d
+        mov ecx,0
+        .ahl_loop:
+            mov byte[board+r9d+ecx],' '
+            inc ecx
+            cmp ecx,[res_x]
+            jne .ahl_loop
+        .ahl_new:
+            add r9d,[res_x]
+            mov byte[board+r9d],'X';'|'
+            inc r9d
+            mov byte[board+r9d],0x0a
+            inc r9d
+            mov byte[board+r9d],0xD
+            inc r10d
+            cmp r10d,[res_y]
+            jne .hollow_line_cb
+    mov r8d,[res_x]
+    add r8d,2
+    mov r10,0
+    .afl_bottom:
+        mov byte[board+r9d+r10d],'X';'-'
+        inc r10d
+        cmp r10d,r8d
+        jne .afl_bottom
+    add r9d,r8d
+    mov byte[board+r9d],0x0a
+    inc r9d
+    mov byte[board+r9d],0xD
+    inc r9d
+    alto:
+    call exit
+    ;mov dword[board_size],r9d
+    ;ret
+    ;;Ahora calculamos el tamaño del board
+    mov r9d,[res_x]
+    mov r10d,[res_y]
+    shl r9d,1
+    add r9d,8
+    shl r10d,2
+    add r9d,r10d
+
+    mov eax,[res_x]
+    mul dword[res_y]
+    mov r10d,eax
+    shl r10d,2
+    add r10d,[display_base_address]
+    mov dword[display_top_address],r10d
+    pausa:
+    add r9d,eax
+    mov dword[board_size],r9d
+
+    ;Ahora calculamos el tope del buffer de pantalla
+    
+    ret
