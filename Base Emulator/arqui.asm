@@ -1629,7 +1629,7 @@ _address_to_screen:
     cmp r9,0
     je .empty
     .full:
-        mov byte[eax],'#'
+        mov byte[eax],'O'
         jmp .end
     .empty:
         mov byte[eax],' '
@@ -1668,7 +1668,7 @@ _create_board:
     mov ecx,[res_x]
     add ecx,2
     .top_loop:
-        add_to_board r8d,'X'
+        add_to_board r8d,'_'
         dec ecx
         cmp ecx,0
         jne .top_loop
@@ -1677,7 +1677,7 @@ _create_board:
     mov ecx,[res_y]
     .middle_loop:
         push rcx 
-        add_to_board r8d,'X'
+        add_to_board r8d,'|'
         mov ecx,[res_x]
         .horizontal_loop:
             add_to_board r8d,' '
@@ -1685,7 +1685,7 @@ _create_board:
             cmp ecx,0
             jne .horizontal_loop
         .next_line:
-            add_to_board r8d,'X'
+            add_to_board r8d,'|'
             add_to_board r8d,0x0a
             add_to_board r8d,0xD
             pop rcx 
@@ -1696,7 +1696,7 @@ _create_board:
     mov ecx,[res_x]
     add ecx,2
     .bottom_loop:
-        add_to_board r8d,'X'
+        add_to_board r8d,'-'
         dec ecx
         cmp ecx,0
         jne .bottom_loop
