@@ -58,16 +58,56 @@ clear_length:	equ $-clear
 	
 	
 
-; Pantalla de inicio, ahorita no se pitna
+; Pantalla de inicio, ahorita no se pinta
 msg1: db "        TECNOLOGICO DE COSTA RICA        ", 0xA, 0xD ; Investiguen porque pongo esto
-msg2: db "        ERNESTO RIVERA ALVARADO        ", 0xA, 0xD
-msg3: db "        INTENTO DE ARKANOID CLONE        ", 0xA, 0xD
+msg2: db "        YAROL MONTOYA JIMENEZ        ", 0xA, 0xD, "        RUBEN BRENES JIMENEZ        ", 0xA, 0xD
+msg3: db "        EMULADOR MIPS EN ARQUITECTURA X86_64        ", 0xA, 0xD
 msg4: db "        PRESIONE ENTER PARA INICIAR        ", 0xA, 0xD
 msg1_length:	equ $-msg1
 msg2_length:	equ $-msg2
 msg3_length:	equ $-msg3
 msg4_length:	equ $-msg4
 
+;-------------------------User Intenrface texts---------------------------------
+
+interfaceh_t: db "Seleccione la resolucion horizontal deseada:", 0xA,"1)16", 0xA,"2)32", 0xA,"3)64", 0xA,"4)128", 0xA
+interfaceh_t_length: equ $-interfaceh_t
+
+interfacehs_t: db "Resolucion horizontal seleccionada:"
+interfacehs_t_length: equ $-interfacehs_t
+
+interfacev_t: db "Seleccione la resolucion vertical deseada:", 0xA,"1)16", 0xA,"2)32", 0xA,"3)64", 0xA,"4)128", 0xA
+interfacev_t_length: equ $-interfacev_t
+
+interfacevs_t: db "Resolucion vertical seleccionada:"
+interfacevs_t_length: equ $-interfacevs_t
+
+interfaced_t: db "Seleccione la direccion de base para el display deseada:", 0xA,"1)0x10000000(global data)", 0xA,"2)0x10008000($gp)", 0xA,"3)0x10010000(static data)", 0xA,"4)0x10040000(heap)", 0xA
+interfaced_t_length: equ $-interfaced_t
+interfaceerror_t: db " no pertenece a niguna de las opciones", 0xA,"Por favor seleccione una de las opciones indicadas", 0xA
+interfaceerror_t_length: equ $-interfaceerror_t
+interfaceds_t: db "Direccion de base para el display seleccionada: "
+interfaceds_t_length: equ $-interfaceds_t
+
+m64_t: db "16", 0xA
+m64_t_length: equ $-m64_t
+m128_t: db "32", 0xA
+m128_t_length: equ $-m128_t
+m256_t: db "64", 0xA
+m256_t_length: equ $-m256_t
+m512_t: db "128", 0xA
+m512_t_length: equ $-m512_t
+
+global_data_t: db "0x10000000(global data)", 0xA
+global_data_t_length: equ $-global_data_t
+gp_t: db "0x10008000($gp)", 0xA
+gp_t_length: equ $-gp_t
+static_data_t: db "0x10010000(static data)", 0xA
+static_data_t_length: equ $-static_data_t
+heap_t: db "0x10040000(heap)", 0xA
+heap_t_length: equ $-heap_t
+
+;-------------------------------------------------------------------------------
 
 ;Investiguen cómo hacer macros en assembler, es muy util y le pueden poner argumentos 
 %macro caso 3
@@ -223,8 +263,6 @@ sw_t: db "sw",0xA
 	syscall			; sleep for tv_sec seconds + tv_nsec nanoseconds
 %endmacro
 
-
-
 global _start
 
 section .bss ; Este es el segmento de datos para variables estáticas, aca se reserva un byte para lo que se lee de consola
@@ -250,7 +288,7 @@ beep db 7 ; "BELL"
     marca: db 0
 	board_size2:   equ   $ - board2
 
-    board:  TIMES 10000 db 0 ;;128x64 + 128*2 + 62*2 + 0's
+    board:  TIMES 20000 db 0 ;;128x64 + 128*2 + 62*2 + 0's
     board_size: dd 0
 	; Esto se requiere para que la termina no se bloquee usar tal cual
 	termios:        times 36 db 0
@@ -280,7 +318,7 @@ beep db 7 ; "BELL"
     pc_address: dd 0 ;;;Direccion pc actual
 
     display_base_address: dd 268468224 ;;Direccion simulada donde empieza la memoria de dibujo del display
-    display_top_address: dd 268468224 + RES_X*RES_Y*4
+    display_top_address: dd display_base_address + RES_X*RES_Y*4
     ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
     res_x: dd RES_X
     res_y: dd RES_Y
@@ -1728,6 +1766,11 @@ _start:
     ;call _address_to_screen
     ;print board,[board_size]
     ;call exit
+
+   
+
+    call _user_interface
+    mov r8,0
     pop r8          
     pop rsi         
     pop rsi
@@ -1740,8 +1783,8 @@ _start:
 	call canonical_off
     call _init_registers
     call _create_log
-	mov dword[res_x],64
-    mov dword[res_y],32
+	;mov dword[res_x],64
+    ;mov dword[res_y],32
     call _create_board
 	
 	.main_loop:
@@ -1762,6 +1805,119 @@ start_screen:
 	print clear, clear_length
 	ret
 ;;; Si quieren ver la pantalla de inicio, pongan un sleep aqui
+
+
+_user_interface:
+    
+    print clear, clear_length
+    call start_screen
+    print interfaceh_t, interfaceh_t_length
+    
+    looph:
+        getchar
+        mov r8, 0
+        mov r8, [input_char]
+        caso r8, 49,interfaceh1
+        caso r8, 50,interfaceh2
+        caso r8, 51,interfaceh3
+        caso r8, 52,interfaceh4
+        print input_char, 1
+        print interfaceerror_t, interfaceerror_t_length
+        jmp looph
+        interfaceh1:;64
+        mov dword[res_x],16
+        print interfacehs_t, interfacehs_t_length
+        print m64_t,m64_t_length
+        print interfacev_t, interfacev_t_length
+        jmp loopv
+        interfaceh2:;128
+        mov dword[res_x],32
+        print interfacehs_t, interfacehs_t_length
+        print m128_t,m128_t_length
+        print interfacev_t, interfacev_t_length
+        jmp loopv
+        interfaceh3:;256
+        mov dword[res_x],64
+        print interfacehs_t, interfacehs_t_length
+        print m256_t,m256_t_length
+        print interfacev_t, interfacev_t_length
+        jmp loopv
+        interfaceh4:;512
+        mov dword[res_x],128
+        print interfacehs_t, interfacehs_t_length
+        print m512_t,m512_t_length
+        print interfacev_t, interfacev_t_length
+        jmp loopv
+    loopv:
+        getchar
+        mov r8, 0
+        mov r8, [input_char]
+        caso r8, 0xA, loopv
+        caso r8, 49,interfacev1
+        caso r8, 50,interfacev2
+        caso r8, 51,interfacev3
+        caso r8, 52,interfacev4
+        print input_char, 1
+        print interfaceerror_t, interfaceerror_t_length
+        jmp loopv
+        interfacev1:
+        mov dword[res_y],16
+        print interfacevs_t, interfacevs_t_length
+        print m64_t,m64_t_length 
+        print interfaced_t, interfaced_t_length
+        jmp loopd
+        interfacev2:
+        mov dword[res_y],32
+        print interfacevs_t, interfacevs_t_length
+        print m128_t,m128_t_length 
+        print interfaced_t, interfaced_t_length
+        jmp loopd
+        interfacev3:
+        mov dword[res_y],64
+        print interfacevs_t, interfacevs_t_length
+        print m256_t,m256_t_length 
+        print interfaced_t, interfaced_t_length
+        jmp loopd
+        interfacev4:
+        mov dword[res_y],128
+        print interfacevs_t, interfacevs_t_length
+        print m512_t,m512_t_length 
+        print interfaced_t, interfaced_t_length
+        jmp loopd
+    loopd:
+        getchar
+        mov r8, 0
+        mov r8, [input_char]
+        caso r8, 0xA, loopd
+        caso r8, 49,interfaced1
+        caso r8, 50,interfaced2
+        caso r8, 51,interfaced3
+        caso r8, 52,interfaced4
+        print input_char, 1
+        print interfaceerror_t, interfaceerror_t_length
+        jmp loopd
+        interfaced1:;global data
+        mov dword[display_base_address], 268435456
+        print interfaceds_t, interfaceds_t_length
+        print global_data_t, global_data_t_length
+        ret
+        interfaced2:;$gp
+        mov dword[display_base_address], 268468224
+        print interfaceds_t, interfaceds_t_length
+        print gp_t, gp_t_length
+        ret
+        interfaced3:;static data
+        mov dword[display_base_address], 268500992
+        print interfaceds_t, interfaceds_t_length
+        print static_data_t, static_data_t_length
+        ret
+        interfaced4:;heap
+        mov dword[display_base_address], 268697600
+        print interfaceds_t, interfaceds_t_length
+        print heap_t, heap_t_length
+        ret
+    ret
+
 
 exit: 
 	call canonical_on
