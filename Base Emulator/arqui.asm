@@ -86,6 +86,8 @@ interfaced_t: db "Seleccione la direccion de base para el display deseada:", 0xA
 interfaced_t_length: equ $-interfaced_t
 interfaceerror_t: db " no pertenece a niguna de las opciones", 0xA,"Por favor seleccione una de las opciones indicadas", 0xA
 interfaceerror_t_length: equ $-interfaceerror_t
+interfaceds_t: db "Direccion de base para el display seleccionada: "
+interfaceds_t_length: equ $-interfaceds_t
 
 m64_t: db "16", 0xA
 m64_t_length: equ $-m64_t
@@ -95,6 +97,15 @@ m256_t: db "64", 0xA
 m256_t_length: equ $-m256_t
 m512_t: db "128", 0xA
 m512_t_length: equ $-m512_t
+
+global_data_t: db "0x10000000(global data)", 0xA
+global_data_t_length: equ $-global_data_t
+gp_t: db "0x10008000($gp)", 0xA
+gp_t_length: equ $-gp_t
+static_data_t: db "0x10010000(static data)", 0xA
+static_data_t_length: equ $-static_data_t
+heap_t: db "0x10040000(heap)", 0xA
+heap_t_length: equ $-heap_t
 
 ;-------------------------------------------------------------------------------
 
@@ -307,7 +318,7 @@ beep db 7 ; "BELL"
     pc_address: dd 0 ;;;Direccion pc actual
 
     display_base_address: dd 268468224 ;;Direccion simulada donde empieza la memoria de dibujo del display
-    display_top_address: dd 268468224 + RES_X*RES_Y*4
+    display_top_address: dd display_base_address + RES_X*RES_Y*4
     ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
     res_x: dd RES_X
     res_y: dd RES_Y
@@ -1853,23 +1864,58 @@ _user_interface:
         mov dword[res_y],16
         print interfacevs_t, interfacevs_t_length
         print m64_t,m64_t_length 
-        ret
+        print interfaced_t, interfaced_t_length
+        jmp loopd
         interfacev2:
         mov dword[res_y],32
         print interfacevs_t, interfacevs_t_length
         print m128_t,m128_t_length 
-        ret
+        print interfaced_t, interfaced_t_length
+        jmp loopd
         interfacev3:
         mov dword[res_y],64
         print interfacevs_t, interfacevs_t_length
         print m256_t,m256_t_length 
-        ret
+        print interfaced_t, interfaced_t_length
+        jmp loopd
         interfacev4:
         mov dword[res_y],128
         print interfacevs_t, interfacevs_t_length
         print m512_t,m512_t_length 
+        print interfaced_t, interfaced_t_length
+        jmp loopd
+    loopd:
+        getchar
+        mov r8, 0
+        mov r8, [input_char]
+        caso r8, 0xA, loopd
+        caso r8, 49,interfaced1
+        caso r8, 50,interfaced2
+        caso r8, 51,interfaced3
+        caso r8, 52,interfaced4
+        print input_char, 1
+        print interfaceerror_t, interfaceerror_t_length
+        jmp loopd
+        interfaced1:;global data
+        mov dword[display_base_address], 268435456
+        print interfaceds_t, interfaceds_t_length
+        print global_data_t, global_data_t_length
         ret
-
+        interfaced2:;$gp
+        mov dword[display_base_address], 268468224
+        print interfaceds_t, interfaceds_t_length
+        print gp_t, gp_t_length
+        ret
+        interfaced3:;static data
+        mov dword[display_base_address], 268500992
+        print interfaceds_t, interfaceds_t_length
+        print static_data_t, static_data_t_length
+        ret
+        interfaced4:;heap
+        mov dword[display_base_address], 268697600
+        print interfaceds_t, interfaceds_t_length
+        print heap_t, heap_t_length
+        ret
     ret
 
 
