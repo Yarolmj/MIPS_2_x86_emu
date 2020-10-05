@@ -35,22 +35,6 @@ STDIN_FILENO: equ 0
 F_SETFL:	equ 0x0004
 O_NONBLOCK: equ 0x0004
 
-RES_X: equ 64
-RES_Y: equ 32
-
-;La pantalla se define como texto, pueden modificarle el tamaño
-row_cells:	equ RES_Y	; 
-column_cells: 	equ RES_X+2 ; 
-array_length:	equ row_cells * column_cells + row_cells ; Esto es un mapao lineal de la consola, la necesitan para escribir caracteres
-
-; Esto es para hacer un sleep
-timespec:
-    tv_sec  dq 0
-    tv_nsec dq 40000000
-
-delay:
-    tv_sec_delay dq 0
-    tv_nsec_delay dq 1000000
 
 ;Este comando es para limpiar la pantalla, no es intuitivo usenlo como tal
 clear:		db 27, "[2J", 27, "[H"
@@ -68,7 +52,7 @@ msg2_length:	equ $-msg2
 msg3_length:	equ $-msg3
 msg4_length:	equ $-msg4
 
-;-------------------------User Intenrface texts---------------------------------
+;-------------------------User Interface texts---------------------------------
 
 interfaceh_t: db "Seleccione la resolucion horizontal deseada:", 0xA,"1)16", 0xA,"2)32", 0xA,"3)64", 0xA,"4)128", 0xA
 interfaceh_t_length: equ $-interfaceh_t
@@ -108,51 +92,19 @@ heap_t: db "0x10040000(heap)", 0xA
 heap_t_length: equ $-heap_t
 
 ;-------------------------------------------------------------------------------
-
-;Investiguen cómo hacer macros en assembler, es muy util y le pueden poner argumentos 
+;------------------------MACROS-------------------------------------------------
+;Se puede usar como un case de C
 %macro caso 3
     cmp %1,%2
     jz %3
 %endmacro
 
-
+;Simplifica la extraccion de partes de las instrucciones
 %macro extract 2
     mov rdi,%1
     call extract_from_instruction
     mov %2,rax
 %endmacro
-
-
-; Este par que están tienen que ver con lo de consola y no bloquearla, uselos tal cual
-%macro setnonblocking 0
-	mov rax, sys_fcntl
-    mov rdi, STDIN_FILENO
-    mov rsi, F_SETFL
-    mov rdx, O_NONBLOCK
-    syscall
-%endmacro
-
-%macro unsetnonblocking 0
-	mov rax, sys_fcntl
-    mov rdi, STDIN_FILENO
-    mov rsi, F_SETFL
-    mov rdx, 0
-    syscall
-%endmacro
-
-; Este es para escribir una linea llena de X
-%macro full_line 0
-    times column_cells db "-"
-    db 0x0a, 0xD
-%endmacro
-
-; Una linea con X a los bordes, tal como la que se pinta
-%macro hollow_line 0
-    db "|"
-    times column_cells-2 db ' '
-    db "|", 0x0a, 0xD
-%endmacro
-
 
 %macro print 2
 	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
@@ -161,13 +113,8 @@ heap_t_length: equ $-heap_t
 	mov edx, %2 ;Aca el largo del mensaje
 	syscall
 %endmacro
-%macro printb 2
-	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
-	mov edi, 1 	; stdout, Aca le digo a donde quiero escribir
-	mov rsi, %1 ;Aca va el mensaje
-	mov edx, [%2] ;Aca el largo del mensaje
-	syscall
-%endmacro
+
+;Usado para escrbir la base de board de forma procedural
 ;1:contador 2:caracter
 %macro add_to_board 2
     mov byte[board+%1],%2
@@ -218,6 +165,7 @@ sb_t: db "sb",0xA
 sh_t: db "sh",0xA
 sw_t: db "sw",0xA
 
+;Se usa para escribir en log
 %macro write 2
 	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
 	mov edi,[log_descriptor]  	; stdout, Aca le digo a donde quiero escribir
@@ -227,6 +175,7 @@ sw_t: db "sw",0xA
 	syscall
 %endmacro
 
+; W.I.P Usado para escribir el pc de la instruccion ejecutandose 
 %macro write_pc 0
 	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
 	mov edi,[log_descriptor]  	; stdout, Aca le digo a donde quiero escribir
@@ -238,7 +187,7 @@ sw_t: db "sw",0xA
 
 
 
-;Usenlo tal cual está acá
+;Lee 1 carater de la consola
 %macro getchar 0
 	mov     rax, sys_read
     mov     rdi, STDIN_FILENO
@@ -246,7 +195,7 @@ sw_t: db "sw",0xA
     mov     rdx, 1 ; Numero de bytes que vamos a leer (solo es uno)
     syscall         ;recuperar el texto desde la consola
 %endmacro
-
+;Lee 1 integer desde la consola
 %macro getinteger 1
     mov     rax, sys_read
     mov     rdi, STDIN_FILENO
