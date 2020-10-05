@@ -175,17 +175,6 @@ sw_t: db "sw",0xA
 	syscall
 %endmacro
 
-; W.I.P Usado para escribir el pc de la instruccion ejecutandose 
-%macro write_pc 0
-	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
-	mov edi,[log_descriptor]  	; stdout, Aca le digo a donde quiero escribir
-	mov rsi,[pc_address] ;Aca va el mensaje
-    add rsi,pc_base_address
-	mov edx, 4 ;Aca el largo del mensaje
-	syscall
-%endmacro
-
-
 
 ;Lee 1 carater de la consola
 %macro getchar 0
@@ -241,6 +230,7 @@ beep db 7 ; "BELL"
 	CC_C:			equ 18
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;.data del emulador;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
     load_byte_buffer: db 0,0
     instruction_buffer: TIMES 4000000 db 0 ;10000 instrucciones * 4bytes = limite del buffer de instrucciones es 4 MBytes
     data_buffer: TIMES 4000000 db 0; Buffer del .data 4 MBytes
@@ -254,12 +244,12 @@ beep db 7 ; "BELL"
     lo_reg: dd 0
 
     pc_address: dd 0 ;;;Direccion pc actual
-
+    pc_char: TIMES 8 db '0'
     display_base_address: dd 0 ;;Direccion simulada donde empieza la memoria de dibujo del display
     display_top_address: dd 0
     ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
-    res_x: dd RES_X
-    res_y: dd RES_Y
+    res_x: dd 0
+    res_y: dd 0
 
     frame: dd 0
 
@@ -1214,8 +1204,38 @@ sleepSyscall:
 	xor esi, esi		; ignore remaining time in case of call interruption
 	syscall			; sleep for tv_sec seconds + tv_nsec nanoseconds
     ret
+
+; W.I.P Usado para escribir el pc de la instruccion ejecutandose 
+write_pc:
+    mov eax,[pc_address]
+    add eax,pc_base_address
+    mov edx,0
+    mov r8d,10
+    mov ecx,7
+    .pc_loop:
+        div r8d
+        add rdx,'0'
+        mov byte[pc_char+ecx],dl
+        ;push rax
+        ;write pc_char,0
+        ;pop rax
+        cmp rax,0
+        jnz .pc_nl
+        jmp .pc_end
+    .pc_nl:
+        dec ecx
+        mov edx,0
+        jmp .pc_loop
+    .pc_end:
+        mov byte[pc_char],'0'
+        write pc_char,7
+        mov byte[pc_char],'-'
+        write pc_char,0
+        ret
+
 ;;;EMULA EL CPU
 _CPU:
+    call write_pc
     ;Extrae el opcode
     mov rdi,0
     call extract_from_instruction
