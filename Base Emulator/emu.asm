@@ -106,13 +106,13 @@ heap_t_length: equ $-heap_t
     mov %2,rax
 %endmacro
 
-%macro print 2
-	mov eax, sys_write ; Aca le digo cual syscall quier aplicar
-	mov edi, 1 	; stdout, Aca le digo a donde quiero escribir
-	mov rsi, %1 ;Aca va el mensaje
-	mov edx, %2 ;Aca el largo del mensaje
-	syscall
-%endmacro
+    %macro print 2
+        mov eax, sys_write ; Aca le digo cual syscall quier aplicar
+        mov edi, 1 	; stdout, Aca le digo a donde quiero escribir
+        mov rsi, %1 ;Aca va el mensaje
+        mov edx, %2 ;Aca el largo del mensaje
+        syscall
+    %endmacro
 
 ;Usado para escrbir la base de board de forma procedural
 ;1:contador 2:caracter
@@ -205,6 +205,9 @@ global _start
 
 section .bss ; Este es el segmento de datos para variables estáticas, aca se reserva un byte para lo que se lee de consola
 
+num: resb 1000
+
+next: resb 1 ;guarda la semilla para los numeros random
 filename_text: resb 20 ;Reserva para la direccion .text
 filename_data: resb 20 ;Reserva para la direccion .data
 input_char: resb 1
@@ -1107,6 +1110,7 @@ _xori:;R
 _syscall:
     mov r8d, [reg+2*4]
     caso r8d,1,print_integer
+    caso r8d,4,print_string
     caso r8d,5,read_integer
     caso r8d,9,allocate_heap_memory
     caso r8d,10,exit
@@ -1126,8 +1130,29 @@ _syscall:
 	    mov edx,1
 	    syscall
         ret
+    print_string:
+        mov r15d, 0
+        mov r15d, [reg + 4*4]
+        sub r15,MEM_offset
+        print_string_loop:
+        mov r14b, [data_buffer + r15d]
+        mov byte[num], r14b
+        print num, 10
+        inc r15b
+        mov r14b, [data_buffer + r15d]
+        cmp r14b, 0
+        jnz print_string_loop
+
+        ret
     print_integer:
-        print [reg + 4*4], 256
+        
+        mov r15d, 0
+        mov r15d, [reg + 4*4]
+        add r15d, '0'
+
+        mov dword[num], r15d
+
+        print num, 1
         ret
     
     read_integer:
@@ -1150,7 +1175,17 @@ _syscall:
         sub rax, r11
         ret
     print_caracter:
-        print [reg + 4*4], 20
+        mov r15d, 0
+        mov r15d, [reg + 4*4]
+        sub r15,MEM_offset
+        print_caracter_loop:
+        mov r14b, [data_buffer + r15d]
+        mov byte[num], r14b
+        print num, 10
+        inc r15b
+        mov r14b, [data_buffer + r15d]
+        cmp r14b, 0
+        jnz print_caracter_loop
         ret
     open_file:;no se utiliza en pong
         mov r8, [reg + 4*4]
@@ -1169,11 +1204,29 @@ _syscall:
         call sleepSyscall
         
         ret
-    Init_random_generator:;no se utiliza en el pong
+    Init_random_generator:;no se utiliza en general
+        mov r8d,0
+        mov r8d, [reg + 5*4]
+        mov dword[next], r8d
         ret
     random_int:;no se usa 
+        
+        call _srand
+        call _rand
+        mov edx, 0
+        mov ecx, 1
+        div ecx
+        mov dword[reg + 4*4], edx
         ret
     random_int_range: ;no se usa en pong pero si en wow
+        call _srand
+        call _rand
+        mov edx,0
+        mov ecx, [reg + 5*4]
+        div ecx
+        mov dword[reg + 4*4], edx
+        mov r15d, [reg + 4*4]
+        random_int_range1:
         ret
 ;;eax = recibe los milisegundos
 sleepSyscall:
@@ -1827,6 +1880,37 @@ _user_interface:
         ret
     ret
 
+_rand:
+    
+    imul    edx, dword[next], 1103515245
+    add     rdx, 12345
+    mov     rcx, rdx
+    imul    rdx, rdx, 1103515245
+    shr     rcx, 6
+    add     rdx, 12345
+    mov     rax, rdx
+    imul    rdx, rdx, 1103515245
+    shr     rax, 16
+    and     rax, 1023
+    mov     rsi, rax
+    mov     rax, rcx
+    add     rdx, 12345
+    and     rax, 2096128
+    mov     rcx, rdx
+    xor     rax, rsi
+    mov     dword[next], edx
+    shr     rcx, 16
+    sal     rax, 10
+    and     rcx, 1023
+    xor     rax, rcx
+    ret
+
+_srand:
+    mov eax, 201
+    mov edi, 0
+    syscall
+    mov dword[next], eax
+    ret
 
 exit: 
 	call canonical_on
