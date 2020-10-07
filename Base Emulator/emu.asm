@@ -1230,10 +1230,17 @@ _syscall:
         call _rand
         mov edx,0
         mov ecx, [reg + 5*4]
+        cmp ecx, 0
+        jnz random_int_range1
+        add ecx, 1
         div ecx
         mov dword[reg + 4*4], edx
         mov r15d, [reg + 4*4]
+        ret
         random_int_range1:
+        div ecx
+        mov dword[reg + 4*4], edx
+        mov r15d, [reg + 4*4]
         ret
 ;;eax = recibe los milisegundos
 sleepSyscall:
