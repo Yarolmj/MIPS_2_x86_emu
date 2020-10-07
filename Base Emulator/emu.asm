@@ -792,10 +792,12 @@ _nor:
     ret
 
 _addu:
-    mov r8,[reg+rbx*4]
-    and r8,0xFFFFFFFF
-    mov r9,[reg+rcx*4]
-    and r9,0xFFFFFFFF
+    mov r8,0
+    mov r8d,[reg+rbx*4]
+    ;and r8,0xFFFFFFFF
+    mov r9,0
+    mov r9d,[reg+rcx*4]
+    ;and r9,0xFFFFFFFF
     add r8,r9
     mov dword[reg+rdx*4],r8d
     ret
@@ -1920,7 +1922,7 @@ _srand:
     ret
 
 exit: 
-    
+
 	call canonical_on
 	mov    rax, 60
     mov    rdi, 0
