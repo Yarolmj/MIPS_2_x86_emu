@@ -1763,6 +1763,8 @@ _start:
         call _CPU
 		getchar
     	
+        cmp byte[input_char],'q'
+        jz exit
         jmp .main_loop
 
 
@@ -1918,6 +1920,7 @@ _srand:
     ret
 
 exit: 
+    
 	call canonical_on
 	mov    rax, 60
     mov    rdi, 0
