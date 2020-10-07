@@ -248,6 +248,7 @@ beep db 7 ; "BELL"
 
     pc_address: dd 0 ;;;Direccion pc actual
     pc_char: TIMES 8 db '0'
+    int_char: TIMES 8 db '0'
     display_base_address: dd 0 ;;Direccion simulada donde empieza la memoria de dibujo del display
     display_top_address: dd 0
     ;;;;Resolución del display, declaradas en .data para poder configurarlas al iniciar el emulador
@@ -1114,7 +1115,6 @@ _syscall:
     caso r8d,5,read_integer
     caso r8d,9,allocate_heap_memory
     caso r8d,10,exit
-    caso r8d,11,print_caracter
     caso r8d,13,open_file
     caso r8d,17,terminate_with_value
     caso r8d,31,MIDI
@@ -1132,6 +1132,7 @@ _syscall:
         ret
     print_string:
         mov r15d, 0
+        mov dword[num],0
         mov r15d, [reg + 4*4]
         sub r15,MEM_offset
         print_string_loop:
@@ -1146,13 +1147,29 @@ _syscall:
         ret
     print_integer:
         
-        mov r15d, 0
-        mov r15d, [reg + 4*4]
-        add r15d, '0'
+        mov eax,[reg + 4*4]
+        mov edx,0
+        mov r8d,10
+        mov ecx,7
+        print_integer_loop:
+            div r8d
+            add rdx,'0'
+            mov byte[int_char+ecx],dl
+            mov r15d, [int_char]
+            cmp rax,0
+            jnz print_integer_nl
+            jmp print_integer_end
+        print_integer_nl:
+            dec ecx
+            mov edx,0
+            jmp print_integer_loop
 
-        mov dword[num], r15d
+        print_integer_end:
+        mov r14d, [reg + 4*4]; numero que deberia ser
+        mov r15d, [int_char]; lo que hay en ascii
+        asdaf:
+        print int_char, 7
 
-        print num, 1
         ret
     
     read_integer:
@@ -1174,19 +1191,7 @@ _syscall:
         mov rax, heap_base_address
         sub rax, r11
         ret
-    print_caracter:
-        mov r15d, 0
-        mov r15d, [reg + 4*4]
-        sub r15,MEM_offset
-        print_caracter_loop:
-        mov r14b, [data_buffer + r15d]
-        mov byte[num], r14b
-        print num, 10
-        inc r15b
-        mov r14b, [data_buffer + r15d]
-        cmp r14b, 0
-        jnz print_caracter_loop
-        ret
+
     open_file:;no se utiliza en pong
         mov r8, [reg + 4*4]
         mov r9, [reg + 5*4]
